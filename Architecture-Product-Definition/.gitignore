@@ -1,0 +1,33 @@
+# --------------------------------------------------
+# Minime V1 Architecture Repository
+# Local-only files and editor settings
+# --------------------------------------------------
+
+# Claude local workspace
+.claude/
+
+# VS Code
+.vscode/
+
+# JetBrains IDEs
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.log
+
+# Swap files
+*.swp
+*.swo
+
+# Backup files
+*~

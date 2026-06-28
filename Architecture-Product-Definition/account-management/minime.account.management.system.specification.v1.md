@@ -1,0 +1,715 @@
+# Minime Account Management System Specification V1
+
+## Status
+
+Approved
+
+---
+
+# Purpose
+
+The Minime Account Management System is responsible for managing an approved Minime account after account creation.
+
+Its responsibility begins immediately after an Approved User Account exists.
+
+The system persists the user-provided data in:
+
+* Connected Accounts
+* Authentication Identity
+* Profile Information
+* Account Settings
+
+The user remains the source of truth. The system stores the canonical representation of what the user intentionally provided or confirmed; it never originates or replaces user intent automatically.
+
+The Account Management System is independent from:
+
+* Account Claim System
+* Social Accounts Setup
+* Future Profile Import Engine
+
+---
+
+# Scope
+
+The Account Management System is responsible for:
+
+* Connected account management
+* Profile editing
+* Authentication identity management
+* Account settings management
+* Connected account validation
+* Connected account lifecycle management
+
+The Account Management System is not responsible for:
+
+* Username creation
+* Username ownership
+* Username changes
+* Public profile URL changes
+* Social account collection and normalization
+* Social account ownership verification
+* Profile data import
+* Analytics
+* Historical profile versions
+
+---
+
+# Core Principles
+
+## Current State Only
+
+Minime stores only the current version of account data.
+
+The system does not maintain:
+
+* Profile version history
+* User-visible change history
+* Restore points
+* Rollback functionality
+
+New values replace old values.
+
+---
+
+## Last Write Wins
+
+When a user updates data:
+
+```text
+Old Value
+↓
+New Value
+```
+
+The new value replaces the old value.
+
+The previous value is discarded.
+
+---
+
+## User Is The Source Of Truth
+
+Minime never decides which connected accounts belong to a user.
+
+The user decides:
+
+* Which accounts to add
+* Which accounts to remove
+* Which accounts to edit
+
+The system only validates the format of each connected account record. It never checks whether the account exists on the external platform.
+
+---
+
+## Unlimited Connected Accounts
+
+Users may connect any number of accounts.
+
+There is no platform limit.
+
+Example:
+
+```text
+Instagram
+├── @ahmed
+├── @ahmedagency
+└── @ahmedstore
+
+YouTube
+├── @ahmed
+└── @ahmedpodcast
+```
+
+All are valid.
+
+---
+
+## Platform Independence
+
+Connected accounts are independent.
+
+A change to one connected account must never affect another account.
+
+---
+
+## No Status Model
+
+Connected Accounts do not have statuses.
+
+There is no:
+
+* Pending
+* Active
+* Inactive
+* Verified
+* Imported
+* Archived
+
+A connected account either exists or does not exist.
+
+---
+
+# Connected Account Model
+
+## Definition
+
+A Connected Account represents a platform account that the user has chosen to associate with their Minime profile.
+
+A Connected Account is a lightweight entity.
+
+It is not a profile import record.
+
+It is not an analytics record.
+
+It is not an ownership verification record.
+
+---
+
+## Required Fields
+
+Every Connected Account contains:
+
+```text
+connected_account_id
+account_id
+platform
+username
+url
+```
+
+---
+
+## Example
+
+```json
+{
+  "connected_account_id": "acc_01JXXXX",
+  "account_id": "usr_01JXXXX",
+  "platform": "instagram",
+  "username": "ahmedofficial",
+  "url": "https://www.instagram.com/ahmedofficial/"
+}
+```
+
+---
+
+## Out Of Scope
+
+Connected Accounts must not store:
+
+* Followers
+* Following
+* Verification Status
+* Bio
+* Avatar
+* Profile Metrics
+* Analytics Data
+* Imported Profile Data
+
+These belong to future systems.
+
+---
+
+# Connected Account Operations
+
+## Creation Sources
+
+Connected Accounts may be created through:
+
+### Social Accounts Setup
+
+```text
+Normalized Social Account Record
+↓
+Save
+↓
+Create Connected Account
+```
+
+Account creation occurs immediately.
+
+No intermediate review state exists.
+
+---
+
+### Manual Addition
+
+```text
+Platform
++
+Username
+↓
+Validation
+↓
+Create Connected Account
+```
+
+---
+
+## Manual Input Format
+
+Users manually add accounts using:
+
+```text
+Platform
++
+Username
+```
+
+Example:
+
+```text
+Instagram
+ahmedofficial
+```
+
+The system generates the canonical URL using the platform rules.
+
+Example:
+
+```text
+https://www.instagram.com/ahmedofficial/
+```
+
+---
+
+## Validation Requirement
+
+All manually added accounts must be validated before creation.
+
+Validation uses the platform rules.
+
+If the account cannot be found:
+
+```text
+Creation Rejected
+```
+
+The account is not stored.
+
+---
+
+## Duplicate Prevention
+
+Duplicate Connected Accounts are not allowed.
+
+Example:
+
+```text
+Instagram
+@ahmedofficial
+```
+
+cannot be added twice by the same user.
+
+---
+
+## Editing
+
+Connected Accounts are editable.
+
+Users may update:
+
+```text
+username
+```
+
+The updated value replaces the existing value.
+
+The connected record remains the same record.
+
+Example:
+
+```text
+connected_account_id = acc_01JXXXX
+```
+
+does not change.
+
+The canonical URL is always generated by the platform rules.
+
+Users cannot edit URLs directly.
+
+---
+
+## Platform Changes
+
+Platform changes are not supported.
+
+Example:
+
+```text
+Instagram
+↓
+TikTok
+```
+
+is not an edit.
+
+It is a different account.
+
+Users must:
+
+```text
+Remove Existing Account
+↓
+Create New Account
+```
+
+---
+
+## Removal
+
+Connected Account removal uses:
+
+```text
+Hard Delete
+```
+
+Example:
+
+```text
+Remove Account
+↓
+Delete Connected Account
+```
+
+The account is permanently removed.
+
+No account archive exists.
+
+No restore functionality exists.
+
+---
+
+# Profile Editing Rules
+
+## Editable Fields
+
+All profile fields are editable except:
+
+```text
+Username
+Public Profile URL
+```
+
+Examples of editable data:
+
+* Display Name
+* Bio
+* Avatar
+* Connected Accounts
+* Contact Information
+* Future Profile Fields
+
+---
+
+## Username
+
+Usernames are not editable in V1.
+
+Username ownership remains governed by Account Claim System.
+
+---
+
+## Public Profile URL
+
+Public profile URLs are derived from usernames.
+
+Because usernames cannot change:
+
+```text
+Public Profile URL
+```
+
+cannot change.
+
+---
+
+## Update Strategy
+
+All profile updates follow:
+
+```text
+Last Write Wins
+```
+
+The newest value replaces the previous value.
+
+No profile version history exists.
+
+No draft system exists.
+
+No restore system exists.
+
+---
+
+# Authentication Identity Management
+
+## Authentication Model
+
+Minime V1 uses:
+
+```text
+Passwordless Authentication
+```
+
+Supported methods:
+
+* Email OTP
+* Google Sign-In
+
+Passwords are not supported.
+
+---
+
+## Primary Authentication Identity
+
+Every account must have exactly one primary authentication identity.
+
+Allowed types:
+
+```text
+email
+google
+```
+
+---
+
+## Minimum Requirement
+
+Every account must always have:
+
+```text
+At Least One Authentication Method
+```
+
+The last remaining authentication method cannot be removed.
+
+---
+
+## Google Priority Rule
+
+Google is considered stronger than email authentication.
+
+If a user originally registers with:
+
+```text
+Email OTP
+```
+
+and later successfully verifies:
+
+```text
+Google Account
+```
+
+the Google account becomes the new primary authentication identity.
+
+Example:
+
+```text
+user@example.com
+↓
+Google Verified
+↓
+another@gmail.com
+```
+
+Result:
+
+```text
+Primary Identity
+=
+another@gmail.com
+```
+
+The previous primary identity is replaced.
+
+---
+
+## Authentication Identity Changes
+
+Changing an authentication identity requires verification.
+
+Examples:
+
+```text
+Email A
+↓
+Email B
+```
+
+or
+
+```text
+Google A
+↓
+Google B
+```
+
+require successful verification of the new identity before replacement.
+
+---
+
+## Recovery Email
+
+All accounts must maintain a verified recovery email.
+
+The recovery email may be:
+
+* The primary email identity
+* A separate verified email
+
+**Enforcement:**
+
+For email-authenticated accounts: the registration email automatically satisfies the recovery email requirement. No additional action is required.
+
+For Google-authenticated accounts: a recovery email must be provided before the account may remove its only authentication identity. The Account Management System owns enforcement of this requirement at the point of authentication identity removal.
+
+The recovery email requirement is not a condition for basic account use, profile editing, or publishing. It becomes a gate only when an action would leave the account without any recovery path.
+
+Recovery emails are used for future account recovery capabilities.
+
+They are not login methods.
+
+---
+
+# Session Policy
+
+## Session Creation
+
+Successful authentication creates a user session.
+
+Examples:
+
+```text
+Email OTP
+↓
+Authenticated
+↓
+Session Created
+```
+
+or
+
+```text
+Google Sign-In
+↓
+Authenticated
+↓
+Session Created
+```
+
+---
+
+## Session Lifetime
+
+Session duration:
+
+```text
+7 Days
+```
+
+---
+
+## Session Expiry
+
+After session expiration:
+
+### Email Users
+
+```text
+Request New OTP
+↓
+Authenticate
+↓
+New Session
+```
+
+### Google Users
+
+```text
+Continue With Google
+↓
+Authenticate
+↓
+New Session
+```
+
+---
+
+## Logout
+
+Logout applies only to the current session.
+
+V1 does not support:
+
+* Session Management
+* Device Lists
+* Trusted Devices
+* Logout All Devices
+
+---
+
+# Social Accounts Integration
+
+## Social Accounts Relationship
+
+Social Accounts Setup is not part of Account Management.
+
+Social Accounts Setup remains a separate domain that collects, normalizes, and generates URLs for user-provided social account identifiers.
+
+---
+
+## Save Flow
+
+```text
+Normalized Social Account Record
+↓
+Save
+↓
+Create Connected Account
+```
+
+No additional review process exists.
+
+---
+
+## Existing Accounts
+
+If Social Accounts Setup produces a record that already exists in Account Management:
+
+The account remains visible.
+
+The result should be marked:
+
+```text
+Already Added
+```
+
+The user remains responsible for all decisions.
+
+---
+
+# Audit Logging
+
+Administrative audit logging is defined separately in:
+
+```text
+audit.logging.policy.v1.md
+```
+
+Account Management may emit audit events but does not define audit retention, storage, access controls, or operational policies.
+
+---
+
+# Related Documents
+
+```text
+connected.accounts.specification.v1.md
+profile.content.specification.v1.md
+audit.logging.policy.v1.md
+authentication.policy.v1.md
+minime.account.claim.system.specification.v1.md
+```
