@@ -93,7 +93,6 @@ type TextboxBlock = {
   id: string;
   account_id: string;
   type: "textbox";
-  status: "active" | "hidden";
   sort_order: number;
   content: TextboxBlockContent;
   settings: TextboxBlockSettings;
@@ -168,7 +167,6 @@ Editing a Textbox Block may update:
 
 ```text
 text
-status
 sort_order
 ```
 
@@ -182,20 +180,6 @@ No other blocks are affected.
 
 ---
 
-## Hidden State
-
-If status is:
-
-```text
-hidden
-```
-
-the Textbox Block must not render.
-
-The content remains stored.
-
----
-
 ## Validation Rules
 
 A Textbox Block is valid when:
@@ -203,7 +187,6 @@ A Textbox Block is valid when:
 ```text
 type = textbox
 account_id exists
-status is active or hidden
 sort_order is valid
 content.text exists
 ```
@@ -270,7 +253,6 @@ These are defined by the Theme and resolved by the Block Styling System into Res
 The Textbox Block is responsible for:
 
 * Owning text content
-* Defining visibility
 * Defining placement order
 * Representing content
 
@@ -341,7 +323,6 @@ The Textbox Block V1 does not support:
   "id": "block_09",
   "account_id": "account_01",
   "type": "textbox",
-  "status": "active",
   "sort_order": 60,
   "content": {
     "text": "I build brands, products, and digital experiences."

@@ -119,8 +119,7 @@ All blocks owned by the account are permanently deleted.
 
 This includes:
 
-* Active blocks
-* Hidden blocks
+* All blocks
 * All block types (avatar, name, bio, image, button, social icons, divider, title, textbox)
 
 Block content is deleted. Block ordering references are deleted.
@@ -137,7 +136,7 @@ The account's appearance configuration is permanently deleted:
 * Theme customization values
 * Design token overrides
 
-Theme definitions in the Theme Catalog are not affected. Those belong to the Appearance Domain, not the account.
+Theme definitions in the Theme Catalog are not affected. Those belong to the Appearance system, not the account.
 
 ---
 

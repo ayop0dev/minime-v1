@@ -315,7 +315,7 @@ Platform rules never define:
 
 # OAuth Boundary
 
-OAuth belongs to the Settings domain.
+OAuth belongs to the Account domain.
 
 Its responsibility is:
 

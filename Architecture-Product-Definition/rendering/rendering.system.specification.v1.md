@@ -455,12 +455,12 @@ All expensive calculations occur upstream.
 
 ---
 
-# Relationship With Appearance Domain
+# Relationship With Appearance system
 
 Flow:
 
 ```text
-Appearance Domain (Theme Library + Appearance State)
+Appearance system (Theme Library + Appearance State)
         ↓
 Resolved Appearance State
 ```

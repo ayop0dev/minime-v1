@@ -8,6 +8,8 @@ Approved
 
 # Purpose
 
+> The Account Management System is part of the Account domain. Account Management is not a standalone Product Domain.
+
 The Minime Account Management System is responsible for managing an approved Minime account after account creation.
 
 Its responsibility begins immediately after an Approved User Account exists.

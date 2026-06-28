@@ -4,7 +4,7 @@
 
 Theme selection is the mechanism by which a profile's Appearance State acquires a Theme reference.
 
-This is a subsystem of the Appearance Domain.
+This is a subsystem of the Appearance system.
 
 Theme selection is a user-facing action performed through the Design editor.
 

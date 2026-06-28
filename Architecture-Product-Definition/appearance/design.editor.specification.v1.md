@@ -15,7 +15,7 @@ The Design Editor provides the user interface through which users configure the 
 
 It allows users to select Themes, customize supported visual properties, preview changes, and persist approved visual configuration.
 
-The Design Editor exists solely as the interaction layer of the Appearance domain.
+The Design Editor exists solely as the interaction layer of the Appearance system.
 
 ---
 
@@ -23,7 +23,7 @@ The Design Editor exists solely as the interaction layer of the Appearance domai
 
 The Design Editor is responsible for editing the Appearance State of a Profile.
 
-It exposes visual customization capabilities supported by the Appearance domain while respecting all architectural constraints.
+It exposes visual customization capabilities supported by the Appearance system while respecting all architectural constraints.
 
 The Design Editor does not define visual rules, rendering behavior, or persistence architecture.
 
@@ -31,7 +31,7 @@ The Design Editor does not define visual rules, rendering behavior, or persisten
 
 # 3. Ownership
 
-The Design Editor belongs exclusively to the Appearance domain.
+The Design Editor belongs exclusively to the Appearance system.
 
 It is the only user-facing interface responsible for modifying Appearance State.
 
@@ -86,7 +86,7 @@ The Design Editor may expose capabilities including:
 * Appearance reset
 * Appearance preview
 
-The specific capabilities available are determined by the Appearance domain and Theme constraints.
+The specific capabilities available are determined by the Appearance system and Theme constraints.
 
 ---
 
@@ -234,7 +234,7 @@ The Design Editor only selects and customizes them.
 
 The Design Editor never owns Profile Content.
 
-Content editing belongs to the Profile Content domain.
+Content editing belongs to the Profile domain.
 
 ---
 

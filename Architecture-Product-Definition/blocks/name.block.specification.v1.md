@@ -111,7 +111,6 @@ type NameBlock = {
   id: string;
   account_id: string;
   type: "name";
-  status: "active" | "hidden";
   sort_order: number;
   content: NameBlockContent;
   settings: NameBlockSettings;
@@ -172,7 +171,6 @@ If created by default:
 
 ```text
 type = name
-status = active
 content = {}
 settings.source = profile_display_name
 ```
@@ -186,7 +184,6 @@ The exact default position is controlled by profile setup rules, not by the Name
 Editing the Name Block may update:
 
 ```text
-status
 sort_order
 settings
 ```
@@ -212,24 +209,6 @@ ProfileContent.display_name
 ```
 
 The display name remains stored in Profile Content unless changed or removed there.
-
----
-
-## Hidden State
-
-If the Name Block status is:
-
-```text
-hidden
-```
-
-Then the display name must not render on the public profile.
-
-The display name data may still exist in:
-
-```text
-ProfileContent.display_name
-```
 
 ---
 
@@ -259,7 +238,6 @@ A Name Block is valid when:
 ```text
 type = name
 account_id exists
-status is active or hidden
 sort_order is valid
 content is empty object
 settings.source = profile_display_name
@@ -268,7 +246,6 @@ settings.source = profile_display_name
 The block is renderable only when:
 
 ```text
-status = active
 ProfileContent.display_name exists
 ProfileContent.display_name is valid
 ```
@@ -288,7 +265,6 @@ ProfileContent.display_name
 The renderer produces a Render Object based on:
 
 * ProfileContent.display_name
-* Name Block status
 * Name Block settings
 * Resolved Style
 
@@ -325,7 +301,6 @@ The Name Block is responsible for:
 
 * Existing as a display name placement block
 * Referencing ProfileContent.display_name
-* Defining whether the name is active or hidden
 * Defining where the name appears in block order
 * Preserving single-instance behavior
 
@@ -412,7 +387,6 @@ The Name Block V1 does not support:
   "id": "block_02",
   "account_id": "account_01",
   "type": "name",
-  "status": "active",
   "sort_order": 2,
   "content": {},
   "settings": {

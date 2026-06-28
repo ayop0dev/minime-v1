@@ -4,8 +4,10 @@
 
 **Version:** 1.0
 **Status:** Approved
-**Domain:** Settings
+**Domain:** Account
 **Architecture Status:** Frozen
+
+> The Settings System is part of the Account domain. Settings is not a standalone Product Domain; it is the configuration-presentation area of the Account domain.
 
 ---
 
@@ -37,9 +39,9 @@ Every setting remains owned by its respective domain.
 
 Examples include:
 
-* Account settings → Account Domain
-* Profile settings → Profile Content Domain
-* Appearance settings → Appearance Domain
+* Account settings → Account domain
+* Profile settings → Profile domain
+* Appearance settings → Profile domain
 
 Future domains may expose additional settings through the Settings System.
 

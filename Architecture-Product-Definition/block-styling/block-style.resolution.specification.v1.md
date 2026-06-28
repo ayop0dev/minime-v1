@@ -83,7 +83,7 @@ These inputs are required for resolution.
 
 Ownership note:
 
-Theme Defaults, Theme Configuration, and Theme Constraints are owned by the Appearance domain.
+Theme Defaults, Theme Configuration, and Theme Constraints are owned by the Appearance system.
 The Style Resolution System receives them as external inputs.
 It does not own or produce them.
 
@@ -108,8 +108,7 @@ Resolved Style
 ├─ Border
 ├─ Shadow
 ├─ Alignment
-├─ Spacing
-└─ Visibility
+└─ Spacing
 ```
 
 All values must be final.

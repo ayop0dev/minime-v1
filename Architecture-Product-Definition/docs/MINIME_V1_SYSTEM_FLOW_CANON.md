@@ -86,15 +86,13 @@ The stable V1 Product Domains include:
 * Username
 * Social Accounts
 * Connected Accounts
-* Profile Content
-* Blocks
-* Appearance
+* Profile
 * Rendering
 * Public Profile
 * Out Links
 * Analytics
-* Settings
-* QR Code
+
+The Account domain owns account management, settings, and the QR code entry point. The Profile domain owns the profile fields, blocks, and design (appearance) as one business concept.
 
 Product Domains own meaning. They **do not** own binary storage, persistence lifecycle, event transport, or AI decision-making. When a domain needs to keep a record, store a file, emit an event, or request a suggestion, it hands that responsibility down to a Platform Capability. The domain still decides *what* the data means; it just does not run the machinery that keeps or moves it.
 

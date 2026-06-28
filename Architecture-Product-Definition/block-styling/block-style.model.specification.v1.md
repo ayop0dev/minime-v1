@@ -62,8 +62,7 @@ Style
 ├─ Border
 ├─ Shadow
 ├─ Alignment
-├─ Spacing
-└─ Visibility
+└─ Spacing
 ```
 
 Not all properties apply to all block types.
@@ -194,21 +193,6 @@ Padding
 Margin
 Internal Gap
 ```
-
----
-
-## Visibility
-
-Defines visual visibility options.
-
-Examples:
-
-```text
-Visible
-Hidden
-```
-
-Future visibility settings may be added.
 
 ---
 

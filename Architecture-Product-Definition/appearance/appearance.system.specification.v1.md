@@ -8,15 +8,15 @@ Approved
 
 # Purpose
 
-This document defines the Appearance Domain of Minime V1.
+This document defines the Appearance system of Minime V1.
 
-Appearance is the domain responsible for the visual configuration of a profile.
+Appearance is the design area of the Profile domain responsible for the visual configuration of a profile.
 
 It defines how Profile Content should appear.
 
 It never defines what Profile Content contains.
 
-Appearance is a supporting domain within the Minime V1 Product Architecture.
+Appearance is part of the Profile domain within the Minime V1 Product Architecture. It is the design area of the Profile domain, not a standalone domain.
 
 It participates in profile rendering by providing visual configuration, but it never renders content itself.
 
@@ -87,7 +87,7 @@ Its responsibility begins after content exists and ends before rendering begins.
 
 # Domain Mission
 
-The mission of the Appearance Domain is to maintain a consistent visual configuration for every profile.
+The mission of the Appearance system is to maintain a consistent visual configuration for every profile.
 
 Appearance guarantees that visual decisions remain independent from:
 
@@ -151,7 +151,7 @@ Appearance
 └── Appearance State
 ```
 
-These are the only responsibilities owned by the Appearance Domain.
+These are the only responsibilities owned by the Appearance system.
 
 ---
 
@@ -213,7 +213,7 @@ Design
 Settings
 ```
 
-The Design editor is the user-facing representation of the Appearance Domain.
+The Design editor is the user-facing representation of the Appearance system.
 
 Users edit Design.
 
@@ -262,7 +262,7 @@ This architecture follows the Domain Entity Canon.
 
 # Relationship With Theme Library
 
-Theme Library is a subsystem of the Appearance Domain.
+Theme Library is a subsystem of the Appearance system.
 
 It provides:
 
@@ -396,7 +396,7 @@ Account remains the aggregate root of the system.
 
 # Non-Goals
 
-The Appearance Domain is intentionally limited.
+The Appearance system is intentionally limited.
 
 Appearance is **not**:
 
@@ -416,7 +416,7 @@ Any responsibility outside that boundary belongs to another domain.
 
 # Architecture Principles
 
-The Appearance Domain follows all approved Minime V1 Architecture Canons.
+The Appearance system follows all approved Minime V1 Architecture Canons.
 
 These principles are permanent and apply to every future Appearance specification.
 
@@ -576,7 +576,7 @@ Appearance State represents the complete visual configuration of one profile.
 
 It is the output produced by the Design editor.
 
-Appearance State belongs to the Appearance Domain.
+Appearance State belongs to the Appearance system.
 
 It is persisted inside Profile Content.
 
@@ -747,7 +747,7 @@ The following statements are permanent architectural rules.
 
 ## Canon 1
 
-Appearance is a supporting domain.
+Appearance is part of the Profile domain (its design area).
 
 ---
 
@@ -829,7 +829,7 @@ This responsibility boundary is permanent for Minime V1.
 
 # Related Specifications
 
-This document is the root specification of the Appearance Domain.
+This document is the root specification of the Appearance system.
 
 Theme subsystem:
 

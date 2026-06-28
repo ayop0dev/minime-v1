@@ -30,7 +30,7 @@ SEO never becomes the source of truth for any business information.
 
 ---
 
-# Constitutional Classification
+# Architectural Classification
 
 The SEO Domain is a **Cross-Cutting Product Capability**.
 

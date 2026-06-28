@@ -78,17 +78,17 @@ Core Architecture Frozen — Product Governance Phase
 
 # Purpose
 
-This document serves as the primary navigation map for the entire Minime V1 architecture.
+This document is a practical architectural overview of Minime V1.
 
-It defines the complete product scope, the major domains, the end-to-end product journey, the architectural boundaries, and the relationships between all core components.
+It describes the product structure: the complete product scope, the major domains, the end-to-end product journey, the architectural boundaries, and the relationships between the core components.
 
-Every specification within the repository must align with this document.
+It exists to help engineers, reviewers, and AI understand how the product is organized. Specifications across the repository are expected to stay consistent with this overview.
 
 This document intentionally remains implementation-independent. It defines what Minime is, how it is organized, and how every domain contributes to the overall product architecture.
 
-**Canonical Architectural View:** This document is the Conceptual Architecture View. It defines domain ownership and domain dependency order. It does not describe runtime execution sequences, persistence structures, or technical infrastructure. Persistence structures and runtime flows are documented separately.
+**Architectural View:** This document is the conceptual overview of the product. It describes domain ownership and domain dependency order. It does not describe runtime execution sequences, persistence structures, or technical infrastructure. Persistence structures and runtime flows are documented separately.
 
-Any new feature, domain, folder, or specification introduced into the repository must first have a clearly defined place within this Product Map before detailed specifications are created.
+When a new feature, domain, folder, or specification is introduced, it should have a clear place within this overview before detailed specifications are created.
 
 ---
 
@@ -96,7 +96,7 @@ Any new feature, domain, folder, or specification introduced into the repository
 
 Status
 
-Canonical
+Active
 
 Version
 
@@ -105,10 +105,6 @@ V1
 Applies To
 
 Entire Repository
-
-Authority
-
-Highest
 
 ---
 
@@ -140,7 +136,7 @@ The following principles shape every architectural and product decision within M
 
 - **User-provided social accounts.** Social Accounts collects user-provided account identifiers, normalizes them, and generates canonical public profile URLs. It never searches platforms, verifies account existence, or contacts external services.
 
-- **Immediate consistency.** All persisted profile changes are immediately reflected in the visitor-facing profile experience. There are no draft, unpublished, hidden, scheduled, preview, or separate live profile states.
+- **Near-live public updates.** Persisted profile changes propagate to the visitor-facing profile as near-live updates, with a maximum cache delay of 60 seconds. There are no draft, unpublished, scheduled, preview, or separate live profile states.
 
 ---
 
@@ -203,29 +199,24 @@ Everything included below is considered part of the V1 product architecture.
 
 ---
 
-## Core Domains
+## Product Domains
 
 - Account
 - Authentication
 - Username
 - Social Accounts
 - Connected Accounts
-- Profile Content
-- Blocks
+- Profile
 - Rendering
 - Public Profile
 - Out Links
 - Analytics
 
----
-
-## Supporting Domains
-
-- Appearance
-- Settings
-- QR Code
-
-> Theme Library and Background Configuration are subsystems of the Appearance Domain, not standalone domains. They do not appear as independent domains in the Conceptual Architecture.
+> **Account** is a single domain that owns account identity, account management, settings, and the QR code entry point. Settings, QR Code, and Account Management are not standalone domains.
+>
+> **Profile** is a single domain that owns the profile as one business concept — its profile fields, its blocks, and its design (appearance). Profile fields, blocks, and design are implementation concerns within Profile, not separate business ownership boundaries.
+>
+> Theme Library and Background Configuration are implementation concerns within Profile design, not standalone domains.
 
 ---
 
@@ -250,7 +241,7 @@ They own no canonical entity.
 
 SEO generates metadata definitions for all public profiles.
 
-SEO reads from Profile Content, Public Profile, Account, and Appearance.
+SEO reads from Profile, Public Profile, and Account.
 
 SEO produces metadata definitions (HTML title, canonical URL, robots directives, Open Graph, Twitter Card, Structured Data) that Rendering emits into the final HTML output.
 
@@ -372,9 +363,9 @@ Every domain should have a clear responsibility within the overall product lifec
 | Choose Username            | Username           |
 | Add Social Accounts        | Social Accounts    |
 | Save Connected Accounts    | Connected Accounts |
-| Create Profile Content     | Profile Content    |
-| Arrange Blocks             | Blocks             |
-| Customize Appearance       | Appearance         |
+| Create Profile Content     | Profile            |
+| Arrange Blocks             | Profile            |
+| Customize Appearance       | Profile            |
 | Generate Public Profile    | Rendering          |
 | Access Public Profile      | Public Profile     |
 | Share Public Link          | Public Profile     |
@@ -397,20 +388,16 @@ Together, these domains describe the complete architecture of Minime.
 
 | Domain             | Responsibility                                                         |
 | ------------------ | ---------------------------------------------------------------------- |
-| Account            | Owns and manages every resource within the system.                     |
+| Account            | Owns and manages every resource within the system, including account management, account preferences and settings, and the QR code entry point to the public profile. |
 | Authentication     | Verifies account identity and controls access.                         |
 | Username           | Manages each account's unique public identity.                         |
 | Social Accounts    | Collects user-provided social account identifiers, normalizes input, applies platform rules, and generates canonical public profile URLs (Smart Mode and Manual Mode). |
 | Connected Accounts | Stores the social account records produced by Social Accounts Setup.   |
-| Profile Content    | Stores all content displayed on the public profile.                    |
-| Blocks             | Defines the reusable building blocks used to compose profile content.  |
-| Appearance         | Controls the visual presentation of the public profile.                |
+| Profile            | Owns the profile as one business concept — its profile fields, its blocks, and its design (appearance) — and all content displayed on the public profile. |
 | Rendering          | Generates the public profile from current profile content.             |
 | Public Profile     | Exposes profiles through public URLs.                                  |
 | Out Links          | Routes outbound traffic and tracks link clicks.                        |
 | Analytics          | Collects and reports profile and link performance metrics.             |
-| Settings           | Stores account preferences and configuration.                          |
-| QR Code            | Provides a scannable entry point to the public profile.                |
 
 Every specification within the repository belongs to one of these domains.
 
@@ -443,13 +430,7 @@ Social Accounts
 Connected Accounts
         │
         ▼
-Profile Content
-        │
-        ▼
-Blocks
-        │
-        ▼
-Appearance
+Profile
         │
         ▼
 Rendering
@@ -463,15 +444,18 @@ Out Links
         ▼
 Analytics
 
-## Supporting Domain Relationships
+Profile owns the profile fields, blocks, and design (appearance) as one business concept; these are stages within the Profile domain, not separate domains.
 
-Settings and QR Code are supporting domains. They operate alongside the core pipeline without participating in the primary publication flow.
+## Account Domain Scope
 
-Account ──────────────────────── Settings
-                                  (account preferences and configuration)
+Account preferences and settings, account management, and the QR code entry point to the public profile are all owned by the Account domain. They are not separate domains.
 
-Public Profile ────────────────── QR Code
-                                  (scannable entry point to the public profile)
+```text
+Account
+ ├─ account management
+ ├─ settings (account preferences and configuration)
+ └─ QR code (scannable entry point to the public profile)
+```
 
 ## Relationship Principles
 
@@ -484,7 +468,7 @@ Public Profile ────────────────── QR Code
 * Analytics never modifies content.
 * Social Accounts collects and normalizes user-provided identifiers only.
 * Social Accounts never searches platforms or verifies account existence.
-* Appearance affects presentation only.
+* Profile design (appearance) affects presentation only.
 * Account remains the single aggregate root throughout the entire product lifecycle.
 
 
@@ -496,31 +480,29 @@ The repository structure is the physical implementation of that architecture.
 
 Each domain is implemented as an independent specification folder containing all documents related to that responsibility.
 
-| Domain             | Repository Folder     | Primary Specification                              | Status |
-| ------------------ | --------------------- | -------------------------------------------------- | :----: |
-| Account            | `/account`            | `account.model.specification.v1.md`                |   ✅   |
-| Authentication     | `/account`            | `authentication.policy.v1.md`                      |   ✅   |
-| Username           | `/account`            | `username.policy.v1.md`                            |   ✅   |
-| Social Accounts    | `/social-accounts`    | `social.accounts.setup.specification.v1.md`        |   ✅   |
-| Connected Accounts | `/account-management` | `connected.accounts.specification.v1.md`           |   ✅   |
-| Profile Content    | `/profile-content`    | `profile.content.specification.v1.md`              |   ✅   |
-| Blocks             | `/blocks`             | `block.system.specification.v1.md`                 |   ✅   |
-| Appearance         | `/appearance`         | `appearance.system.specification.v1.md`            |   ✅   |
-| Rendering          | `/rendering`          | `rendering.architecture.canon.v1.md`               |   ✅   |
-| Public Profile     | `/public-profile`     | `public-profile.system.specification.v1.md`        |   ✅   |
-| Out Links          | `/out-links`          | `out-link.system.specification.v1.md`              |   ✅   |
-| Analytics          | `/analytics`          | `analytics.system.specification.v1.md`             |   ✅   |
-| Settings           | `/Settings`           | `settings.system.specification.v1.md`              |   ✅   |
-| QR Code            | `/qr-code`            | `qr-code.system.specification.v1.md`               |   ✅   |
+| Domain             | Repository Folder(s)                                            | Primary Specification                              | Status |
+| ------------------ | -------------------------------------------------------------- | -------------------------------------------------- | :----: |
+| Account            | `/account`, `/account-management`, `/settings`, `/qr-code`     | `account.model.specification.v1.md`                |   ✅   |
+| Authentication     | `/account`                                                     | `authentication.policy.v1.md`                      |   ✅   |
+| Username           | `/account`                                                     | `username.policy.v1.md`                            |   ✅   |
+| Social Accounts    | `/social-accounts`                                             | `social.accounts.setup.specification.v1.md`        |   ✅   |
+| Connected Accounts | `/account-management`                                          | `connected.accounts.specification.v1.md`           |   ✅   |
+| Profile            | `/profile-content`, `/blocks`, `/appearance`, `/block-styling` | `profile.content.specification.v1.md`              |   ✅   |
+| Rendering          | `/rendering`                                                   | `rendering.architecture.canon.v1.md`               |   ✅   |
+| Public Profile     | `/public-profile`                                              | `public-profile.system.specification.v1.md`        |   ✅   |
+| Out Links          | `/out-links`                                                   | `out-link.system.specification.v1.md`              |   ✅   |
+| Analytics          | `/analytics`                                                   | `analytics.system.specification.v1.md`             |   ✅   |
+
+The Account domain spans the `/account`, `/account-management`, `/settings`, and `/qr-code` folders. The Profile domain spans the `/profile-content`, `/blocks`, `/appearance`, and `/block-styling` folders. These multiple folders are implementation concerns within a single business domain; they are not separate domains.
 
 ## Repository Principles
 
 * Every specification belongs to exactly one domain.
-* Every domain owns one primary specification.
+* Each domain has one primary specification.
 * Supporting specifications extend the primary specification of their domain.
+* A domain may span more than one folder when those folders are implementation concerns of the same business domain.
 * Cross-domain references should remain minimal and explicitly documented.
-* New folders should only be created when introducing a new architecture domain.
-* Repository organization must always reflect the Product Map.
+* Repository organization should reflect this architectural overview.
 
 # Architecture Canon
 
@@ -586,7 +568,7 @@ The Social Accounts domain is responsible for:
 * **Platform Rules** — per-platform formatting definitions (identifier type, accepted input, display prefix, canonical URL template, normalization rules).
 * **URL Generation** — producing canonical public profile URLs from normalized identifiers.
 * **Social Account Storage** — persisting normalized social account records.
-* **OAuth Boundary** — OAuth is an optional future Settings / Connected Accounts capability only; it is never part of onboarding or Social Accounts Setup, and never required to create a social account.
+* **OAuth Boundary** — OAuth is an optional future Account / Connected Accounts capability only; it is never part of onboarding or Social Accounts Setup, and never required to create a social account.
 
 Social Accounts never performs account discovery, platform search, account existence checks, confidence scoring, scraping, browser automation, platform API requests, or search engine queries. Removing internet access must not change its behavior.
 
@@ -610,9 +592,9 @@ Minime V1 has no publishing workflow.
 A profile is not "published" in V1.
 A profile exists once an account is activated and a valid username is bound to it.
 
-All persisted profile changes are immediately reflected in the visitor-facing profile experience.
+Persisted profile changes propagate to the visitor-facing profile as near-live updates, with a maximum cache delay of 60 seconds.
 
-There are no draft, unpublished, hidden, scheduled, preview, or separate live profile states in V1.
+There are no draft, unpublished, scheduled, preview, or separate live profile states in V1.
 
 ---
 
@@ -633,7 +615,7 @@ There are no draft, unpublished, hidden, scheduled, preview, or separate live pr
 * Architecture evolves through Product Map updates first.
 * Normal implementation work does not reopen frozen architecture.
 * Architecture decisions are documented before implementation.
-* The Product Map is the highest architectural authority within the repository.
+* The Product Map is the practical architectural overview of the product.
 
 ---
 
@@ -669,7 +651,7 @@ Normal implementation work must never reopen frozen architecture.
 
 ### Core Product Architecture
 
-* All fourteen Product Domains and their defined responsibilities
+* All Product Domains and their defined responsibilities
 * Domain Ownership
 * Domain Relationships
 * Rendering Architecture
@@ -930,15 +912,11 @@ A domain progresses through the following stages:
 | Username           |    ✅   |
 | Social Accounts    |    ✅   |
 | Connected Accounts |    ✅   |
-| Profile Content    |    ✅   |
-| Blocks             |    ✅   |
+| Profile            |    ✅   |
 | Rendering          |    ✅   |
 | Public Profile     |    ✅   |
 | Out Links          |    ✅   |
 | Analytics          |    ✅   |
-| Appearance         |    ✅   |
-| Settings           |    ✅   |
-| QR Code            |    ✅   |
 
 ---
 
@@ -1042,7 +1020,7 @@ These decisions should rarely change and represent the architectural history of 
 
 * Every domain owns one primary specification.
 
-* The Product Map is the highest architectural authority within the repository.
+* The Product Map is the practical architectural overview of the product.
 
 ---
 

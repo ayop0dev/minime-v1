@@ -88,7 +88,6 @@ type ButtonBlock = {
   id: string;
   account_id: string;
   type: "button";
-  status: "active" | "hidden";
   sort_order: number;
   content: ButtonBlockContent;
   settings: ButtonBlockSettings;
@@ -218,7 +217,6 @@ Editing a Button Block may update:
 ```text
 label
 url
-status
 sort_order
 ```
 
@@ -236,20 +234,6 @@ No other blocks are affected.
 
 ---
 
-## Hidden State
-
-If status is:
-
-```text
-hidden
-```
-
-the button must not render on the public profile.
-
-The button content remains stored.
-
----
-
 ## Validation Rules
 
 A Button Block is valid when:
@@ -257,7 +241,6 @@ A Button Block is valid when:
 ```text
 type = button
 account_id exists
-status is active or hidden
 sort_order is valid
 label exists
 url exists
@@ -341,7 +324,6 @@ The Button Block is responsible for:
 
 * Owning button content
 * Owning destination URL
-* Defining visibility
 * Defining placement order
 * Remaining independent from other Button Blocks
 
@@ -432,7 +414,6 @@ The Button Block V1 does not support:
   "id": "block_06",
   "account_id": "account_01",
   "type": "button",
-  "status": "active",
   "sort_order": 30,
   "content": {
     "label": "Visit Website",

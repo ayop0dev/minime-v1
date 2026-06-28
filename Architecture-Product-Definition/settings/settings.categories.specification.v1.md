@@ -66,7 +66,7 @@ Examples include:
 
 **Owner**
 
-Profile Content Domain
+Profile domain
 
 Responsible for profile-level configuration.
 
@@ -82,7 +82,7 @@ Examples include:
 
 **Owner**
 
-Appearance Domain
+Profile domain
 
 Responsible for visual configuration.
 

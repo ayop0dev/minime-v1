@@ -100,7 +100,6 @@ type DividerBlock = {
   id: string;
   account_id: string;
   type: "divider";
-  status: "active" | "hidden";
   sort_order: number;
   content: DividerBlockContent;
   settings: DividerBlockSettings;
@@ -156,7 +155,6 @@ type = divider
 Editing a Divider Block may update:
 
 ```text
-status
 sort_order
 ```
 
@@ -172,18 +170,6 @@ No other blocks are affected.
 
 ---
 
-## Hidden State
-
-If status is:
-
-```text
-hidden
-```
-
-the divider must not render on the public profile.
-
----
-
 ## Validation Rules
 
 A Divider Block is valid when:
@@ -191,7 +177,6 @@ A Divider Block is valid when:
 ```text
 type = divider
 account_id exists
-status is active or hidden
 sort_order is valid
 content is empty object
 ```
@@ -283,7 +268,6 @@ not Divider Block.
 The Divider Block is responsible for:
 
 * Creating visual separation
-* Defining visibility
 * Defining placement order
 * Existing as an independent block
 
@@ -372,7 +356,6 @@ The Divider Block V1 does not support:
   "id": "block_07",
   "account_id": "account_01",
   "type": "divider",
-  "status": "active",
   "sort_order": 40,
   "content": {},
   "settings": {},

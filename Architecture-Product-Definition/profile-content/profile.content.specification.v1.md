@@ -8,6 +8,8 @@ Approved
 
 # Purpose
 
+> Profile Content is part of the Profile domain. The Profile domain owns the profile as one business concept — its profile fields, its blocks, and its design (appearance). Profile fields, blocks, and design are implementation concerns within Profile, not separate business ownership boundaries. This document is the primary specification of the Profile domain.
+
 This document defines the content model used by Minime profiles.
 
 Profile Content represents the information a user chooses to publish through their Minime profile.
@@ -69,7 +71,7 @@ Responsible for:
 
 ---
 
-## Appearance Domain
+## Appearance system
 
 Responsible for:
 
@@ -487,11 +489,11 @@ is a valid profile.
 
 # Publishing Model
 
-## Immediate Publishing
+## No Draft Workflow
 
 Profile Content does not support drafts.
 
-Changes become active immediately.
+Changes are saved immediately, with no separate publish step. Saved changes then propagate to the visitor-facing profile as near-live updates, with a maximum cache delay of 60 seconds.
 
 Flow:
 
@@ -500,7 +502,7 @@ Edit
 ↓
 Save
 ↓
-Published
+Near-Live Public Update (≤ 60s cache delay)
 ```
 
 ---

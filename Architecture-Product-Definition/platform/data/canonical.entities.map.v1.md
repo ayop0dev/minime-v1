@@ -451,7 +451,7 @@ Examples include:
 * image block
 * divider block
 * title block
-* text block
+* textbox block
 
 ## Owner
 
@@ -474,7 +474,7 @@ System-Owned Metadata
 
 Partially public after Rendering.
 
-Internal fields such as identity, ownership, status, and ordering metadata are not public by default.
+Internal fields such as identity, ownership, and ordering metadata are not public by default.
 
 ## Key Relationships
 

@@ -79,8 +79,6 @@ Render Objects
 
 Block Order
 
-Block Visibility
-
 Profile Structure
 
 Theme Selection

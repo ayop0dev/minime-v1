@@ -6,7 +6,7 @@ Theme customization is the mechanism by which users modify visual values within 
 
 Customization values are stored in the Appearance State, not in the Theme Definition.
 
-This is a subsystem of the Appearance Domain.
+This is a subsystem of the Appearance system.
 
 Users access Theme customization through the Design editor.
 

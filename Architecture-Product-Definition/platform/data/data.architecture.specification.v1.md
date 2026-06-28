@@ -96,7 +96,7 @@ The Data Platform Service decides how the approved structured record is maintain
 
 For example:
 
-* The Blocks domain defines what a Button Block means.
+* The Profile domain defines what a Button Block means.
 * The Data Platform Service defines how the Button Block record follows ownership, identity, lifecycle, and deletion rules.
 
 The Data Platform Service must never absorb Product Domain meaning.

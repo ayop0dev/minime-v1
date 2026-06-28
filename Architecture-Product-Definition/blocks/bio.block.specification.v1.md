@@ -111,7 +111,6 @@ type BioBlock = {
   id: string;
   account_id: string;
   type: "bio";
-  status: "active" | "hidden";
   sort_order: number;
   content: BioBlockContent;
   settings: BioBlockSettings;
@@ -172,7 +171,6 @@ If created by default:
 
 ```text
 type = bio
-status = active
 content = {}
 settings.source = profile_bio
 ```
@@ -186,7 +184,6 @@ The exact default position is controlled by profile setup rules, not by the Bio 
 Editing the Bio Block may update:
 
 ```text
-status
 sort_order
 settings
 ```
@@ -212,24 +209,6 @@ ProfileContent.bio
 ```
 
 The bio remains stored in Profile Content unless changed or removed there.
-
----
-
-## Hidden State
-
-If the Bio Block status is:
-
-```text
-hidden
-```
-
-Then the bio must not render on the public profile.
-
-The bio data may still exist in:
-
-```text
-ProfileContent.bio
-```
 
 ---
 
@@ -259,7 +238,6 @@ A Bio Block is valid when:
 ```text
 type = bio
 account_id exists
-status is active or hidden
 sort_order is valid
 content is empty object
 settings.source = profile_bio
@@ -268,7 +246,6 @@ settings.source = profile_bio
 The block is renderable only when:
 
 ```text
-status = active
 ProfileContent.bio exists
 ProfileContent.bio is valid
 ```
@@ -288,7 +265,6 @@ ProfileContent.bio
 The renderer produces a Render Object based on:
 
 * ProfileContent.bio
-* Bio Block status
 * Bio Block settings
 * Resolved Style
 
@@ -326,7 +302,6 @@ The Bio Block is responsible for:
 
 * Existing as a bio placement block
 * Referencing ProfileContent.bio
-* Defining whether the bio is active or hidden
 * Defining where the bio appears in block order
 * Preserving single-instance behavior
 
@@ -416,7 +391,6 @@ The Bio Block V1 does not support:
   "id": "block_03",
   "account_id": "account_01",
   "type": "bio",
-  "status": "active",
   "sort_order": 3,
   "content": {},
   "settings": {

@@ -4,9 +4,9 @@
 
 The Theme Catalog is a subsystem within the Theme Library.
 
-The Theme Library is a subsystem of the Appearance Domain.
+The Theme Library is a subsystem of the Appearance system.
 
-The Appearance Domain is responsible for the visual state of a Minime profile.
+The Appearance system is responsible for the visual state of a Minime profile.
 
 The Theme Catalog provides the platform-managed Theme Definitions that profiles may select through the Design editor.
 
@@ -318,7 +318,7 @@ Theme Forking
 ## V1 Principles
 
 ```text
-Theme Catalog Is A Subsystem Within The Appearance Domain
+Theme Catalog Is A Subsystem Within The Appearance system
 
 Themes Are Platform Assets
 

@@ -217,7 +217,6 @@ Each Block may be:
 Created
 Updated
 Reordered
-Hidden
 Deleted
 ```
 
@@ -275,9 +274,9 @@ Rendering systems provide visual output.
 
 ---
 
-# Visibility Relationship
+# Profile Availability Relationship
 
-Profile Content itself does not have visibility states.
+Profile Content itself does not have draft or published states.
 
 There is no:
 
@@ -290,11 +289,12 @@ Private Profile Content
 
 at the content level.
 
-Visibility decisions belong to:
+A block either exists or it does not exist. There is no hidden block state.
+
+Whether a profile is publicly reachable depends on:
 
 ```text
 Public Profile System
-Block System
 Account Status
 ```
 

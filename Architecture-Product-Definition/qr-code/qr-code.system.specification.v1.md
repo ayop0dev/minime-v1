@@ -4,7 +4,9 @@
 
 **Version:** 1.0
 **Status:** Approved
-**Domain:** QR Code
+**Domain:** Account
+
+> The QR Code System is part of the Account domain. QR Code is not a standalone Product Domain; it is the scannable entry point owned by the Account domain.
 
 ---
 

@@ -27,15 +27,15 @@ Appearance State is responsible for persisting visual configuration for a single
 
 It serves as the permanent visual state consumed by the Rendering system.
 
-Appearance State belongs exclusively to the Appearance domain.
+Appearance State belongs exclusively to the Appearance system.
 
 ---
 
 # 3. Ownership
 
-Appearance State is owned by the Appearance domain.
+Appearance State is owned by the Appearance system.
 
-Only the Appearance domain may create, modify, validate, or persist Appearance State.
+Only the Appearance system may create, modify, validate, or persist Appearance State.
 
 Other domains may consume Appearance State but never modify it directly.
 
@@ -117,7 +117,7 @@ It is deleted only when its owning Profile is permanently removed.
 
 # 9. Update Rules
 
-Appearance State may only be updated through the Appearance domain.
+Appearance State may only be updated through the Appearance system.
 
 Every update must produce a valid Appearance State.
 
@@ -236,7 +236,7 @@ Each Profile owns exactly one Appearance State.
 
 ## Domain Ownership
 
-Appearance State belongs exclusively to the Appearance domain.
+Appearance State belongs exclusively to the Appearance system.
 
 ---
 
@@ -268,7 +268,7 @@ Runtime artifacts are never persisted.
 
 Appearance State contains no Profile content.
 
-Profile content belongs to the Profile Content domain.
+Profile content belongs to the Profile domain.
 
 ---
 

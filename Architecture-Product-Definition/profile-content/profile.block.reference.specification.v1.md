@@ -107,7 +107,6 @@ Block Identity
 Block Type
 Block Content
 Block Settings
-Block Status
 Block Validation
 ```
 
@@ -214,8 +213,6 @@ Profile Content
 ↓
 Get Account Blocks
 ↓
-Filter Active Blocks
-↓
 Sort
 ↓
 Return Collection
@@ -227,17 +224,19 @@ It only provides the collection.
 
 ---
 
-# Active Block Collection
+# Block Rendering Eligibility
 
-Only active Blocks are eligible for rendering.
+Every stored Block is eligible for rendering.
+
+A Block either exists or it does not exist. There is no hidden, archived, or inactive block state.
 
 Example:
 
 ```text
-Avatar      Active
-Name        Active
-Bio         Hidden
-Button      Active
+Avatar
+Name
+Bio
+Button
 ```
 
 Returned collection:
@@ -245,12 +244,9 @@ Returned collection:
 ```text
 Avatar
 Name
+Bio
 Button
 ```
-
-Hidden blocks remain stored.
-
-They are simply excluded from active profile composition.
 
 ---
 
@@ -381,32 +377,7 @@ Remove Reference
 Delete Block
 ```
 
-or
-
-```text
-Hide Block
-```
-
-depending on the operation.
-
-Profile Content must no longer include removed blocks in active composition.
-
----
-
-# Block Visibility
-
-Profile Content does not define visibility rules.
-
-Visibility belongs to the Block System.
-
-Examples:
-
-```text
-active
-hidden
-```
-
-Profile Content only consumes visibility state.
+Profile Content must no longer include deleted blocks in profile composition.
 
 ---
 
@@ -441,7 +412,6 @@ Profile Content must not duplicate:
 ```text
 Block Content
 Block Settings
-Block Status
 Block Validation Rules
 Block Rendering Data
 Theme Data
@@ -489,7 +459,7 @@ Which Order They Appear In
 
 # Relationship With Rendering Engine
 
-The active blocks are transformed into Render Objects by the Block Renderer.
+The blocks are transformed into Render Objects by the Block Renderer.
 
 The Rendering Engine receives:
 

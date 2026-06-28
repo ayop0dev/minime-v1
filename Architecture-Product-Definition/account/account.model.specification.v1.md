@@ -8,6 +8,8 @@ Approved
 
 # Purpose
 
+> The Account domain is a single domain that owns account identity, account management, settings, and the QR code entry point. Account Management, Settings, and QR Code are implementation areas within the Account domain, not standalone Product Domains.
+
 This document defines the Account model used by Minime V1.
 
 The Account is the single identity root of Minime.
@@ -468,11 +470,11 @@ Appearance State is stored as a section within the Profile Content record, ident
 
 The Account does not own Theme Definitions.
 
-Theme Definitions are immutable catalog assets managed by the Theme Library, which is a subsystem of the Appearance Domain.
+Theme Definitions are immutable catalog assets managed by the Theme Library, which is a subsystem of the Appearance system.
 
 The active theme reference (`selected_theme_id`) and any user customization values are part of the Appearance State within the Profile Content record.
 
-Theme definitions, defaults, constraints, and the Theme Catalog are owned by the Appearance Domain, not by the Account.
+Theme definitions, defaults, constraints, and the Theme Catalog are owned by the Appearance system, not by the Account.
 
 ---
 

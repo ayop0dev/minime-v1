@@ -37,7 +37,6 @@ The block controls:
 
 * Which connected accounts appear
 * The order in which they appear
-* Whether individual accounts are visible
 
 The block does not own platform usernames, URLs, or account metadata.
 
@@ -117,7 +116,6 @@ type SocialIconsBlock = {
   id: string;
   account_id: string;
   type: "social_icons";
-  status: "active" | "hidden";
   sort_order: number;
   content: SocialIconsBlockContent;
   settings: SocialIconsBlockSettings;
@@ -143,7 +141,6 @@ type SocialIconsBlockContent = {
 ```ts
 type SocialIconsBlockAccount = {
   connected_account_id: string;
-  status: "active" | "hidden";
   sort_order: number;
 };
 ```
@@ -156,7 +153,6 @@ The block owns:
 
 ```text
 account selection
-account visibility
 account ordering
 ```
 
@@ -254,21 +250,6 @@ Connected Accounts does not.
 
 ---
 
-## Account Visibility Rules
-
-Each referenced account may be:
-
-```text
-active
-hidden
-```
-
-independently.
-
-Hidden accounts remain connected but do not render inside that block.
-
----
-
 ## Editing Rules
 
 Editing a Social Icons Block may update:
@@ -276,8 +257,6 @@ Editing a Social Icons Block may update:
 ```text
 accounts
 account order
-account visibility
-status
 sort_order
 ```
 
@@ -308,20 +287,6 @@ All connected accounts remain intact.
 
 ---
 
-## Hidden State
-
-If the block status is:
-
-```text
-hidden
-```
-
-the entire block must not render.
-
-All referenced accounts remain connected.
-
----
-
 ## Empty Block Behavior
 
 If:
@@ -345,7 +310,6 @@ A Social Icons Block is valid when:
 ```text
 type = social_icons
 account_id exists
-status is active or hidden
 sort_order is valid
 accounts is an array
 ```
@@ -354,7 +318,6 @@ Each account entry is valid when:
 
 ```text
 connected_account_id exists
-status is active or hidden
 sort_order is valid
 ```
 
@@ -440,8 +403,6 @@ The Social Icons Block is responsible for:
 * Referencing connected accounts
 * Selecting which accounts appear
 * Defining account order
-* Defining account visibility
-* Defining block visibility
 * Defining block placement order
 
 ---
@@ -493,7 +454,7 @@ The Social Icons Block is a read-only consumer of Connected Accounts.
 
 Connected Accounts owns platform, username, and url.
 
-The Social Icons Block owns account selection, ordering, and visibility within the block.
+The Social Icons Block owns account selection and ordering within the block.
 
 **Write Authority:**
 
@@ -560,18 +521,15 @@ The Social Icons Block V1 does not support:
   "id": "block_05",
   "account_id": "account_01",
   "type": "social_icons",
-  "status": "active",
   "sort_order": 20,
   "content": {
     "accounts": [
       {
         "connected_account_id": "acc_instagram",
-        "status": "active",
         "sort_order": 1
       },
       {
         "connected_account_id": "acc_linkedin",
-        "status": "active",
         "sort_order": 2
       }
     ]
@@ -601,7 +559,6 @@ It owns only:
 ```text
 selection
 ordering
-visibility
 ```
 
 while the user-provided social account records, persisted in Connected Accounts, remain the canonical reference.

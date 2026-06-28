@@ -94,7 +94,6 @@ type TitleBlock = {
   id: string;
   account_id: string;
   type: "title";
-  status: "active" | "hidden";
   sort_order: number;
   content: TitleBlockContent;
   settings: TitleBlockSettings;
@@ -170,7 +169,6 @@ Editing a Title Block may update:
 
 ```text
 text
-status
 sort_order
 ```
 
@@ -184,20 +182,6 @@ No other blocks are affected.
 
 ---
 
-## Hidden State
-
-If status is:
-
-```text
-hidden
-```
-
-the Title Block must not render.
-
-The content remains stored.
-
----
-
 ## Validation Rules
 
 A Title Block is valid when:
@@ -205,7 +189,6 @@ A Title Block is valid when:
 ```text
 type = title
 account_id exists
-status is active or hidden
 sort_order is valid
 content.text exists
 ```
@@ -272,7 +255,6 @@ These are defined by the Theme and resolved by the Block Styling System into Res
 The Title Block is responsible for:
 
 * Owning title content
-* Defining visibility
 * Defining placement order
 * Representing a section heading
 
@@ -344,7 +326,6 @@ The Title Block V1 does not support:
   "id": "block_08",
   "account_id": "account_01",
   "type": "title",
-  "status": "active",
   "sort_order": 50,
   "content": {
     "text": "Featured Links"

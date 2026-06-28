@@ -34,10 +34,10 @@ Architecture Status: Frozen
 
 means:
 
-* the architectural concept has completed constitutional review;
+* the architectural concept has completed architecture review;
 * its architectural responsibilities are considered stable for the current major version;
 * implementation may proceed without reopening architectural design;
-* future modifications require a constitutional architecture revision rather than ordinary specification editing.
+* future modifications require an architecture revision rather than ordinary specification editing.
 
 This field does **not** change document authority.
 
@@ -105,4 +105,4 @@ It never grants authority.
 
 It never changes governance.
 
-It never overrides constitutional documents.
+It never overrides canonical architecture documents.

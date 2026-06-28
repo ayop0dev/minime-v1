@@ -111,7 +111,6 @@ type AvatarBlock = {
   id: string;
   account_id: string;
   type: "avatar";
-  status: "active" | "hidden";
   sort_order: number;
   content: AvatarBlockContent;
   settings: AvatarBlockSettings;
@@ -172,7 +171,6 @@ If created by default:
 
 ```text
 type = avatar
-status = active
 content = {}
 settings.source = profile_avatar
 ```
@@ -186,7 +184,6 @@ The exact default position is controlled by profile setup rules, not by the Avat
 Editing the Avatar Block may update:
 
 ```text
-status
 sort_order
 settings
 ```
@@ -212,24 +209,6 @@ ProfileContent.avatar
 ```
 
 The avatar image remains stored in Profile Content unless removed from Profile Content directly.
-
----
-
-## Hidden State
-
-If the Avatar Block status is:
-
-```text
-hidden
-```
-
-Then the avatar must not render on the public profile.
-
-The avatar data may still exist in:
-
-```text
-ProfileContent.avatar
-```
 
 ---
 
@@ -259,7 +238,6 @@ An Avatar Block is valid when:
 ```text
 type = avatar
 account_id exists
-status is active or hidden
 sort_order is valid
 content is empty object
 settings.source = profile_avatar
@@ -268,7 +246,6 @@ settings.source = profile_avatar
 The block is renderable only when:
 
 ```text
-status = active
 ProfileContent.avatar exists
 ProfileContent.avatar is valid
 ```
@@ -288,7 +265,6 @@ ProfileContent.avatar
 The renderer produces a Render Object based on:
 
 * ProfileContent.avatar
-* Avatar Block status
 * Avatar Block settings
 * Resolved Style
 
@@ -325,7 +301,6 @@ The Avatar Block is responsible for:
 
 * Existing as an avatar placement block
 * Referencing ProfileContent.avatar
-* Defining whether avatar is active or hidden
 * Defining where avatar appears in block order
 * Preserving single-instance behavior
 
@@ -415,7 +390,6 @@ The Avatar Block V1 does not support:
   "id": "block_01",
   "account_id": "account_01",
   "type": "avatar",
-  "status": "active",
   "sort_order": 1,
   "content": {},
   "settings": {

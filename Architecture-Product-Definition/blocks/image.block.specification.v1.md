@@ -102,7 +102,6 @@ type ImageBlock = {
   id: string;
   account_id: string;
   type: "image";
-  status: "active" | "hidden";
   sort_order: number;
   content: ImageBlockContent;
   settings: ImageBlockSettings;
@@ -167,7 +166,6 @@ Editing an Image Block may update:
 
 ```text
 image_id
-status
 sort_order
 ```
 
@@ -187,20 +185,6 @@ Asset cleanup policies are handled elsewhere.
 
 ---
 
-## Hidden State
-
-If status is:
-
-```text
-hidden
-```
-
-the image must not render on the public profile.
-
-The image content remains stored.
-
----
-
 ## Validation Rules
 
 An Image Block is valid when:
@@ -208,7 +192,6 @@ An Image Block is valid when:
 ```text
 type = image
 account_id exists
-status is active or hidden
 sort_order is valid
 content.image_id exists
 ```
@@ -282,7 +265,6 @@ The Image Block is responsible for:
 
 * Owning image content
 * Referencing a valid image asset
-* Defining visibility
 * Defining placement order
 * Remaining independent from other Image Blocks
 
@@ -367,7 +349,6 @@ The Image Block V1 does not support:
   "id": "block_04",
   "account_id": "account_01",
   "type": "image",
-  "status": "active",
   "sort_order": 10,
   "content": {
     "image_id": "img_001"

@@ -38,7 +38,7 @@ It never exposes unrestricted access to the application.
 
 ---
 
-# Constitutional Classification
+# Architectural Classification
 
 The Integrations Domain is a **Cross-Cutting Product Capability**.
 

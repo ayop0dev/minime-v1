@@ -4,7 +4,7 @@
 
 Theme Constraints are part of a Theme Definition within the Theme Library.
 
-The Theme Library is a subsystem of the Appearance Domain.
+The Theme Library is a subsystem of the Appearance system.
 
 Constraints define the customization limits within which users may modify the Appearance State.
 

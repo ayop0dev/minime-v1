@@ -235,7 +235,7 @@ Higher levels replace lower levels.
 
 Ownership note:
 
-Theme Defaults, Theme Configuration, and Theme Constraints are owned by the Appearance domain.
+Theme Defaults, Theme Configuration, and Theme Constraints are owned by the Appearance system.
 Block Styling receives them as inputs.
 Block Styling never owns or modifies them.
 

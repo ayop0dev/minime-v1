@@ -9,7 +9,7 @@
 
 ## Purpose
 
-This document is the constitutional entry point for the Minime Rendering Architecture.
+This document is the architectural entry point for the Minime Rendering Architecture.
 
 It explains the complete Rendering layer as an architectural system.
 
@@ -27,18 +27,16 @@ Detailed behavioral specifications exist for each component and are linked at th
 
 ---
 
-## Constitutional Position
+## Architectural Position
 
 Rendering is a Product Domain.
-
-It is the fourteenth domain in the Minime V1 product architecture.
 
 It occupies the stage between stored canonical profile data and the public-facing profile experience.
 
 ```text
 Product Journey Position
 
-... → Profile Content → Blocks → Appearance → Rendering → Public Profile → ...
+... → Profile → Rendering → Public Profile → ...
 ```
 
 Rendering is a consumer domain. It reads from every upstream domain and produces presentation output.
@@ -146,7 +144,7 @@ Rendering consumes the following inputs. For each input, the producer, owner, an
 
 ### Input 1 — Profile Content
 
-**Producer:** Profile Content domain
+**Producer:** Profile domain
 **Owner:** Account (via Profile Content)
 **What Rendering reads:**
 - `display_name` (consumed by Name Block Renderer via Name Block reference)
@@ -161,8 +159,8 @@ Rendering consumes the following inputs. For each input, the producer, owner, an
 
 ### Input 2 — Blocks
 
-**Producer:** Blocks domain (block-level content produced by user)
-**Owner:** Account (via Blocks domain)
+**Producer:** Profile domain (block-level content produced by user)
+**Owner:** Account (via Profile domain)
 **What Rendering reads:**
 - Per-block `type` (determines renderer selection)
 - Per-block `sort_order` (determines composition order)
@@ -174,7 +172,7 @@ Rendering consumes the following inputs. For each input, the producer, owner, an
 
 ### Input 3 — Appearance State and Theme
 
-**Producer:** Appearance domain (selection); Theme Catalog (definitions)
+**Producer:** Appearance system (selection); Theme Catalog (definitions)
 **Owner:** Account (for selection); System (for theme definitions)
 **What Rendering reads:**
 - `selected_theme_id` (which theme applies)
@@ -389,7 +387,7 @@ Each Render Object contains:
 
 ### Rendering ← Profile Content
 
-**Producer:** Profile Content domain
+**Producer:** Profile domain
 **Consumer:** Rendering (read-only)
 **Ownership:** Profile Content owns display_name, avatar, bio, blocks list, appearance_state
 **Read:** Rendering reads Profile Content to populate block renderers
@@ -401,7 +399,7 @@ Each Render Object contains:
 
 ### Rendering ← Appearance
 
-**Producer:** Appearance domain
+**Producer:** Appearance system
 **Consumer:** Rendering (read-only, via Block Styling System)
 **Ownership:** Appearance owns theme selection, theme customization, appearance state
 **Read:** Block Styling System reads Appearance State to produce Resolved Style

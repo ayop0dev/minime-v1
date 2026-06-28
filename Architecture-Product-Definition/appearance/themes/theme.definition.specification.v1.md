@@ -4,13 +4,13 @@
 
 A Theme Definition is a catalog asset within the Theme Library.
 
-The Theme Library is a subsystem of the Appearance Domain.
+The Theme Library is a subsystem of the Appearance system.
 
 A Theme Definition describes a reusable visual preset that profiles may select.
 
 It is platform-managed and immutable.
 
-The Appearance Domain stores the selected Theme reference and customization values as the Appearance State.
+The Appearance system stores the selected Theme reference and customization values as the Appearance State.
 
 ---
 
@@ -27,7 +27,7 @@ It feeds into the Appearance State during resolution.
 ## Theme Definition Is A Catalog Asset
 
 ```text
-Theme Definition   →   Theme Catalog   →   Appearance Domain
+Theme Definition   →   Theme Catalog   →   Appearance system
 ```
 
 A Theme Definition lives in the Theme Catalog.

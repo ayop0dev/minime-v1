@@ -72,7 +72,7 @@ A Block is not responsible for deciding how the public profile looks.
 
 ## Ownership
 
-Blocks are owned by Profile Content.
+Blocks are part of the Profile domain. Blocks are owned by Profile Content, which is an implementation area of the Profile domain — not a separate business domain.
 
 Profile Content owns:
 
@@ -102,7 +102,6 @@ Every Block must have the following fields:
 id
 account_id
 type
-status
 sort_order
 content
 settings
@@ -149,27 +148,6 @@ textbox
 ```
 
 The type determines which block specification applies.
-
----
-
-### status
-
-Defines whether the block should be used.
-
-Allowed V1 statuses:
-
-```text
-active
-hidden
-```
-
-#### active
-
-The block is visible and eligible for rendering.
-
-#### hidden
-
-The block remains saved but is not rendered on the public profile.
 
 ---
 
@@ -284,7 +262,7 @@ bio
 
 Identity Blocks are single-instance blocks.
 
-Each profile may have only one active or saved instance of each Identity Block type.
+Each profile may have only one instance of each Identity Block type.
 
 ---
 
@@ -376,7 +354,6 @@ id
 sort_order
 content
 settings
-status
 created_at
 updated_at
 ```
@@ -543,7 +520,6 @@ Blocks are responsible for storing:
 * Block identity
 * Block type
 * Account ownership
-* Block status
 * Block order
 * Block content
 * Block-level settings
@@ -617,7 +593,7 @@ The Rendering Domain composes the page structure.
 
 Appearance is defined by the Theme and resolved by the Block Styling System; the result is carried in each Render Object's Resolved Style.
 
-Examples of appearance owned upstream (Appearance Domain + Block Styling), not by the block:
+Examples of appearance owned upstream (Appearance system + Block Styling), not by the block:
 
 * Theme
 * Background
@@ -635,7 +611,7 @@ The Rendering Domain does not resolve or apply styles, and it does not own block
 
 Account Management owns account-level and content-level data.
 
-It may create, update, hide, delete, or reorder blocks through Profile Content flows.
+It may create, update, delete, or reorder blocks through Profile Content flows.
 
 Account Management does not render blocks.
 
@@ -670,7 +646,6 @@ type Block = {
   id: string;
   account_id: string;
   type: BlockType;
-  status: BlockStatus;
   sort_order: number;
   content: Record<string, unknown>;
   settings: Record<string, unknown>;
@@ -694,16 +669,6 @@ type BlockType =
   | "divider"
   | "title"
   | "textbox";
-```
-
----
-
-## Canonical Block Status
-
-```ts
-type BlockStatus =
-  | "active"
-  | "hidden";
 ```
 
 ---
