@@ -137,7 +137,7 @@ updated_at
 ```json
 {
   "connected_account_id": "acc_01JXXXX",
-  "account_id": "usr_01JXXXX",
+  "account_id": "acc_01JXXXX",
   "platform": "instagram",
   "username": "ahmedofficial",
   "url": "https://instagram.com/ahmedofficial",

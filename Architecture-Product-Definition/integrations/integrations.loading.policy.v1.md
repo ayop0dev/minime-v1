@@ -28,7 +28,7 @@ Loading behavior must never depend on undocumented runtime behavior.
 
 # Source of Truth
 
-The Integrations Domain determines whether a provider is eligible to load.
+The Integrations capability determines whether a provider is eligible to load.
 
 The Rendering Domain executes the loading process.
 
@@ -93,7 +93,7 @@ Providers operate independently.
 
 The loading state of one provider must never influence another provider.
 
-Providers must not communicate through the Integrations Domain.
+Providers must not communicate through the Integrations capability.
 
 ---
 

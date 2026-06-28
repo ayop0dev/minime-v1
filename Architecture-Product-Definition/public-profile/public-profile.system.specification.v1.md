@@ -8,17 +8,17 @@ Approved
 
 # Purpose
 
-The Public Profile System is responsible for serving Minime profiles to visitors.
+> The Public Profile System is the public rendering surface produced by the Rendering domain. It is not a separate Product Domain or a separate architectural responsibility; it is the public-facing surface of Rendering. This document describes that surface.
 
-It is the final public-facing layer of the platform.
+The Public Profile System serves Minime profiles to visitors as the public rendering surface produced by Rendering.
 
-The Public Profile System consumes profile data that has already been processed by the Rendering.
+It is the public-facing surface of the Rendering domain.
 
-Its responsibility is delivery.
+The Public Profile System consumes profile data that has already been processed by Rendering.
+
+Its responsibility is delivery of the rendered surface.
 
 Not content management.
-
-Not rendering.
 
 Not profile editing.
 
@@ -31,11 +31,11 @@ Account
 ↓
 Username
 ↓
-Profile Content
+Profile
 ↓
 Rendering
 ↓
-Public Profile
+Public rendering surface (the public profile)
 ↓
 Visitor
 ```

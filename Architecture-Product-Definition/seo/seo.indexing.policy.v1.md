@@ -28,7 +28,7 @@ Users should never need advanced SEO knowledge to publish safely.
 
 # Source of Truth
 
-The SEO Domain does not determine whether a profile is public.
+The SEO capability does not determine whether a profile is public.
 
 Publication status and visibility are owned by their respective domains.
 

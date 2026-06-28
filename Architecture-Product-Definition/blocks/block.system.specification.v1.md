@@ -72,9 +72,9 @@ A Block is not responsible for deciding how the public profile looks.
 
 ## Ownership
 
-Blocks are part of the Profile domain. Blocks are owned by Profile Content, which is an implementation area of the Profile domain — not a separate business domain.
+Blocks are part of the Profile domain. The Profile domain owns blocks. Profile Content is an implementation area within Profile, not a separate business owner.
 
-Profile Content owns:
+Profile owns:
 
 ```text
 display_name

@@ -122,10 +122,10 @@ metadata
 {
   "log_id": "log_01JXXXX",
   "timestamp": "2026-06-23T12:00:00Z",
-  "account_id": "usr_01JXXXX",
+  "account_id": "acc_01JXXXX",
   "action": "profile_updated",
   "entity_type": "profile",
-  "entity_id": "usr_01JXXXX",
+  "entity_id": "acc_01JXXXX",
   "old_value": {
     "display_name": "Ahmed"
   },

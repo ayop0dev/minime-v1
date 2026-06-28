@@ -34,18 +34,12 @@ This specification is not responsible for:
 
 # Core Principle
 
-## Content Only
+## Single Ownership
 
-Profile Content owns:
-
-```text
-What The User Publishes
-```
-
-Appearance owns:
+Profile owns:
 
 ```text
-Visual Theme Selection And Customization
+What The User Publishes (profile fields, blocks, and design)
 ```
 
 Rendering owns:
@@ -53,6 +47,8 @@ Rendering owns:
 ```text
 How Content Is Assembled And Delivered
 ```
+
+Profile Content and Appearance are implementation areas within the Profile domain. They are not separate business owners.
 
 ---
 
@@ -96,17 +92,18 @@ Responsible for:
 
 # Conceptual Architecture
 
-> [Conceptual Architecture View — Domain Ownership]
+> [Conceptual Architecture View — Ownership]
 
-Profile Content is one of three domains that together define what a public profile is and how it is presented.
+Profile is the single business owner of profile fields, blocks, and design. Profile Content and Appearance are implementation areas within the Profile domain; Rendering is a separate domain responsible for assembly and delivery.
 
 ```text
-Profile Content          ← owns: what the user publishes
-Appearance               ← owns: visual theme selection and customization
-Rendering                ← owns: how content is assembled and delivered
+Profile (owner)
+├─ profile content      ← what the user publishes
+└─ design (appearance)  ← visual theme selection and customization
+Rendering               ← how content is assembled and delivered
 ```
 
-These are three distinct domains with distinct responsibilities. They do not share ownership.
+Profile Content and Appearance are not separate business owners.
 
 ---
 
@@ -201,7 +198,7 @@ contact_information
 
 ```json
 {
-  "account_id": "usr_01JXXXX",
+  "account_id": "acc_01JXXXX",
   "display_name": "Ahmed Salem",
   "avatar": "avatar.jpg",
   "bio": "Building products and businesses.",
@@ -394,7 +391,7 @@ updated_at
 ```json
 {
   "block_id": "blk_01JXXXX",
-  "account_id": "usr_01JXXXX",
+  "account_id": "acc_01JXXXX",
   "type": "button",
   "sort_order": 10
 }
@@ -407,13 +404,15 @@ updated_at
 V1 supports:
 
 ```text
-image
+avatar
 name
 bio
-button
+image
 social_icons
+button
 divider
-text
+title
+textbox
 ```
 
 Block rendering is defined separately.

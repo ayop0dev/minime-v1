@@ -32,19 +32,13 @@ The goal is simple:
 
 This map covers canonical entities required by Minime V1 across:
 
-* Account
+* Account (including settings and QR code)
 * Connected Accounts
-* Profile Content
-* Blocks
-* Appearance
-* Block Styling
-* Rendering support
-* Public Profile
+* Profile (profile content, blocks, design, block styling)
+* Rendering (including the public profile surface)
 * Out Links
 * Analytics
 * Social Accounts
-* Settings
-* QR Code
 * Platform Data
 * Platform Storage metadata
 * Platform Events
@@ -156,13 +150,10 @@ Minime V1 entities are grouped into the following categories:
 
 ```text
 Account Entities
-Profile Content Entities
-Block Entities
-Appearance Entities
+Profile Entities
 Connected Account Entities
 Out Link Entities
 Analytics Entities
-QR Code Entities
 Storage Metadata Entities
 Event Entities
 AI Entities
@@ -183,23 +174,23 @@ The following entities form the canonical data map for V1.
 | -------------------------- | ------------------ | --------------------------------------- | ------------------------------ | ----------------- |
 | Account                    | Account            | System / User-controlled                | Yes                            | Partially         |
 | Authentication Identity    | Account            | Account                                 | Yes                            | No                |
-| Account Settings           | Settings           | Account                                 | Yes                            | No                |
-| Profile Content            | Profile Content    | Account                                 | Yes                            | Partially         |
-| Block                      | Blocks             | Account                                 | Yes                            | Partially         |
-| Block Style Override       | Block Styling      | Account                                 | Yes                            | No                |
-| Appearance Configuration   | Appearance         | Account                                 | Yes                            | Partially         |
-| Theme Selection            | Appearance         | Account                                 | Yes                            | Partially         |
+| Account Settings           | Account            | Account                                 | Yes                            | No                |
+| Profile Content            | Profile            | Account                                 | Yes                            | Partially         |
+| Block                      | Profile            | Account                                 | Yes                            | Partially         |
+| Block Style Override       | Profile            | Account                                 | Yes                            | No                |
+| Appearance Configuration   | Profile            | Account                                 | Yes                            | Partially         |
+| Theme Selection            | Profile            | Account                                 | Yes                            | Partially         |
 | Connected Account          | Connected Accounts | Account                                 | Yes                            | Yes               |
 | Social Platform Definition | System             | System                                  | Yes                            | Yes               |
 | Platform Authorization     | Connected Accounts | Account                                 | No                             | No / Future       |
 | Out Link                   | Out Links          | Account                                 | Yes                            | Public route only |
-| QR Code                    | QR Code            | Account                                 | Yes                            | Public route only |
+| QR Code                    | Account            | Account                                 | Yes                            | Public route only |
 | Analytics Event            | Analytics / Events | System, account-scoped where applicable | Yes                            | No                |
 | Analytics Aggregate        | Analytics          | System, account-scoped where applicable | Derived                        | No                |
 | Stored Asset Metadata      | Storage            | Account or System                       | Yes                            | No                |
 | AI Suggestion              | AI                 | Account-scoped                          | Temporary / Optional Canonical | No                |
 | Render Object              | Rendering          | Generated                               | No                             | Yes               |
-| Public Profile Route       | Public Profile     | Account                                 | Yes                            | Yes               |
+| Public Profile Route       | Rendering          | Account                                 | Yes                            | Yes               |
 
 ---
 
@@ -1480,91 +1471,7 @@ Reserved usernames must not be treated as user-owned accounts until successfully
 
 ---
 
-# 27. Entity Ownership Summary
-
-| Entity                     | Ownership                               |
-| -------------------------- | --------------------------------------- |
-| Account                    | System-created, user-controlled         |
-| Authentication Identity    | Account                                 |
-| Account Settings           | Account                                 |
-| Profile Content            | Account                                 |
-| Block                      | Account                                 |
-| Block Style Override       | Account                                 |
-| Appearance Configuration   | Account                                 |
-| Theme Selection            | Account                                 |
-| Connected Account          | Account                                 |
-| Social Platform Definition | System                                  |
-| Platform Authorization     | Account (V2+ only)                      |
-| Out Link                   | Account                                 |
-| QR Code                    | Account                                 |
-| Public Profile Route       | Account                                 |
-| Stored Asset Metadata      | Account or System                       |
-| Analytics Event            | System, account-scoped where applicable |
-| Analytics Aggregate        | System, account-scoped where applicable |
-| AI Suggestion              | Account-scoped, system-generated        |
-| Render Object              | Generated from Account-owned data       |
-| System Theme Definition    | System                                  |
-| Reserved Username          | System                                  |
-
----
-
-# 28. Entity Source of Truth Summary
-
-| Entity                     | Source of Truth                                            |
-| -------------------------- | ---------------------------------------------------------- |
-| Account                    | User for identity decisions; system for internal lifecycle |
-| Authentication Identity    | User for identifier; system for verification               |
-| Account Settings           | User or system defaults                                    |
-| Profile Content            | User                                                       |
-| Block                      | User                                                       |
-| Block Style Override       | User                                                       |
-| Appearance Configuration   | User and system defaults                                   |
-| Theme Selection            | User selection; system theme definitions                   |
-| Connected Account          | User                                                       |
-| Social Platform Definition | System                                                     |
-| Platform Authorization     | User authorization; external provider metadata (V2+ only)  |
-| Out Link                   | User for destination; system for routing                   |
-| QR Code                    | User for target; system for generated code                 |
-| Public Profile Route       | User for handle; system for routing                        |
-| Stored Asset Metadata      | System for metadata; user for usage decision               |
-| Analytics Event            | Event-producing system                                     |
-| Analytics Aggregate        | Derived from Events                                        |
-| AI Suggestion              | AI output; user decides acceptance                         |
-| Render Object              | Generated from canonical data                              |
-| System Theme Definition    | System                                                     |
-| Reserved Username          | System policy                                              |
-
----
-
-# 29. Public Visibility Summary
-
-| Entity                     | Visitor Public?                |
-| -------------------------- | ------------------------------ |
-| Account                    | Partially                      |
-| Authentication Identity    | No                             |
-| Account Settings           | No                             |
-| Profile Content            | Partially after Rendering      |
-| Block                      | Partially after Rendering      |
-| Block Style Override       | Effect only                    |
-| Appearance Configuration   | Effect only                    |
-| Theme Selection            | Effect only                    |
-| Connected Account          | Yes, if displayed              |
-| Social Platform Definition | Yes                            |
-| Platform Authorization     | No / Future                    |
-| Out Link                   | Public route only              |
-| QR Code                    | Output may be public           |
-| Public Profile Route       | Yes                            |
-| Stored Asset Metadata      | No; served asset may be public |
-| Analytics Event            | No                             |
-| Analytics Aggregate        | No to visitors                 |
-| AI Suggestion              | No                             |
-| Render Object              | Yes                            |
-| System Theme Definition    | Yes as selectable option       |
-| Reserved Username          | No                             |
-
----
-
-# 30. Entity Relationship Overview
+# 27. Entity Relationship Overview
 
 ```text
 Account
@@ -1610,7 +1517,7 @@ Canonical Product Data
 
 ---
 
-# 31. Entities That Must Not Exist in V1
+# 28. Entities That Must Not Exist in V1
 
 The following must not be introduced as canonical ownership entities in V1:
 
@@ -1638,7 +1545,7 @@ Explanation:
 
 ---
 
-# 32. Entity Naming Rules
+# 29. Entity Naming Rules
 
 Entity names should be clear and singular.
 
@@ -1675,7 +1582,7 @@ Do not overload `account_id` to mean both owner and record identity.
 
 ---
 
-# 33. Canonical vs Non-Canonical Outputs
+# 30. Canonical vs Non-Canonical Outputs
 
 Some data structures are useful but not canonical.
 
@@ -1696,34 +1603,7 @@ If they conflict with canonical Product Domain data, canonical Product Domain da
 
 ---
 
-# 34. Required Follow-Up Files
-
-This entity map must be followed by:
-
-```text
-platform/data/data.ownership.and.lifecycle.specification.v1.md
-platform/data/data.retention.and.deletion.policy.v1.md
-```
-
-The ownership and lifecycle specification must define:
-
-* account-owned entity behavior
-* system-owned entity behavior
-* generated entity behavior
-* deletion cascade expectations
-* entity status expectations
-
-The retention and deletion policy must define:
-
-* temporary data expiration
-* analytics event retention
-* AI suggestion retention
-* deleted record handling
-* aggregate data handling
-
----
-
-# 35. Final Canon
+# 31. Final Canon
 
 Minime V1 has one simple data ownership root:
 

@@ -516,7 +516,7 @@ Retention rules are especially important for:
 The specific retention policy belongs in:
 
 ```text
-platform/data/data.retention.and.deletion.policy.v1.md
+platform/data/data.retention.policy.v1.md
 ```
 
 This document defines the principle.
@@ -1012,7 +1012,7 @@ The following Data Platform files should define narrower details:
 ```text
 platform/data/canonical.entities.map.v1.md
 platform/data/data.ownership.and.lifecycle.specification.v1.md
-platform/data/data.retention.and.deletion.policy.v1.md
+platform/data/data.retention.policy.v1.md
 ```
 
 These files must follow the principles defined here.

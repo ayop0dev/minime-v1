@@ -222,7 +222,7 @@ Deleted
 
 according to the Block System rules.
 
-Profile Content owns the collection of blocks.
+Profile owns the collection of blocks.
 
 The Block System owns block-specific lifecycle behavior.
 

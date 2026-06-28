@@ -87,9 +87,9 @@ Applying Layout configuration to the composed profile (Layout System)
 
 Assembling and delivering the final public profile output (Profile Presentation System)
 
-Emitting SEO metadata into the final HTML output (per SEO Domain definitions)
+Emitting SEO metadata into the final HTML output (per SEO capability definitions)
 
-Loading approved integration providers during page generation (per Integrations Domain decisions)
+Loading approved integration providers during page generation (per Integrations capability decisions)
 ```
 
 ---
@@ -99,17 +99,17 @@ Loading approved integration providers during page generation (per Integrations 
 Rendering does not own:
 
 ```text
-Profile content (owned by Profile Content)
+Profile content (owned by Profile)
 
-Block definitions and block data (owned by Blocks)
+Block definitions and block data (owned by Profile)
 
-Block ordering decisions (owned by Profile Content via sort_order)
+Block ordering decisions (owned by Profile via sort_order)
 
 Social account records (owned by Connected Accounts)
 
-Theme selection (owned by Appearance)
+Theme selection (owned by Profile)
 
-Theme customization (owned by Appearance)
+Theme customization (owned by Profile)
 
 Style inheritance resolution (owned by Block Styling System)
 
@@ -119,9 +119,9 @@ Resolved Style computation (owned by Block Styling System — Rendering only con
 
 Layout creation (Layout definitions are external inputs)
 
-SEO rules and indexing policies (owned by SEO Domain)
+SEO rules and indexing policies (owned by SEO capability)
 
-Integration provider registration, validation, and eligibility (owned by Integrations Domain)
+Integration provider registration, validation, and eligibility (owned by Integrations capability)
 
 Analytics collection (owned by Analytics)
 
@@ -145,7 +145,7 @@ Rendering consumes the following inputs. For each input, the producer, owner, an
 ### Input 1 — Profile Content
 
 **Producer:** Profile domain
-**Owner:** Account (via Profile Content)
+**Owner:** Account (via Profile)
 **What Rendering reads:**
 - `display_name` (consumed by Name Block Renderer via Name Block reference)
 - `avatar` (consumed by Avatar Block Renderer via Avatar Block reference)
@@ -209,8 +209,8 @@ Rendering consumes the following inputs. For each input, the producer, owner, an
 
 ### Input 6 — SEO Definitions
 
-**Producer:** SEO Domain (Cross-Cutting Product Capability)
-**Owner:** SEO Domain
+**Producer:** SEO capability (Cross-Cutting Product Capability)
+**Provided by:** SEO capability
 **What Rendering reads:**
 - HTML title rule
 - Meta description rule
@@ -226,8 +226,8 @@ Rendering consumes the following inputs. For each input, the producer, owner, an
 
 ### Input 7 — Integration Eligibility Decisions
 
-**Producer:** Integrations Domain (Cross-Cutting Product Capability)
-**Owner:** Integrations Domain
+**Producer:** Integrations capability (Cross-Cutting Product Capability)
+**Provided by:** Integrations capability
 **What Rendering reads:**
 - Which providers are eligible to load for this page
 - Provider loading configuration
@@ -355,7 +355,7 @@ This is the primary Rendering output.
 
 HTML title, meta description, canonical URL, robots directives, Open Graph metadata, Twitter Card metadata, structured data.
 
-These are emitted by Rendering into the final HTML document per SEO Domain definitions.
+These are emitted by Rendering into the final HTML document per SEO capability definitions.
 
 Rendering does not own these values. Rendering emits them.
 
@@ -363,7 +363,7 @@ Rendering does not own these values. Rendering emits them.
 
 ### Output 3 — Active Integration Providers (embedded in page)
 
-Approved provider activations loaded during page generation per Integrations Domain eligibility decisions.
+Approved provider activations loaded during page generation per Integrations capability eligibility decisions.
 
 Rendering does not own provider eligibility. Rendering executes loading.
 
@@ -389,7 +389,7 @@ Each Render Object contains:
 
 **Producer:** Profile domain
 **Consumer:** Rendering (read-only)
-**Ownership:** Profile Content owns display_name, avatar, bio, blocks list, appearance_state
+**Ownership:** Profile owns display_name, avatar, bio, blocks list, appearance_state
 **Read:** Rendering reads Profile Content to populate block renderers
 **Write:** Rendering never writes to Profile Content
 **Dependency direction:** Rendering depends on Profile Content. Profile Content does not depend on Rendering.
@@ -401,7 +401,7 @@ Each Render Object contains:
 
 **Producer:** Appearance system
 **Consumer:** Rendering (read-only, via Block Styling System)
-**Ownership:** Appearance owns theme selection, theme customization, appearance state
+**Ownership:** Profile owns theme selection, theme customization, and appearance state (via the Appearance area)
 **Read:** Block Styling System reads Appearance State to produce Resolved Style
 **Write:** Rendering never writes to Appearance
 **Dependency direction:** Rendering depends on Appearance. Appearance does not depend on Rendering.
@@ -435,9 +435,9 @@ Each Render Object contains:
 
 ### Rendering ← SEO
 
-**Producer:** SEO Domain (Cross-Cutting Product Capability)
+**Producer:** SEO capability (Cross-Cutting Product Capability)
 **Consumer:** Rendering Engine (reads SEO definitions; emits resulting metadata into HTML)
-**Ownership:** SEO Domain owns metadata generation rules. Rendering owns HTML emission.
+**Ownership:** SEO capability defines metadata generation rules. Rendering owns HTML emission.
 **Read:** Rendering reads SEO definitions to determine what metadata to emit
 **Write:** Rendering never writes to SEO definitions
 **Dependency direction:** Rendering depends on SEO. SEO does not depend on Rendering.
@@ -447,9 +447,9 @@ Each Render Object contains:
 
 ### Rendering ← Integrations
 
-**Producer:** Integrations Domain (Cross-Cutting Product Capability)
+**Producer:** Integrations capability (Cross-Cutting Product Capability)
 **Consumer:** Rendering Engine (reads eligibility decisions; activates approved providers)
-**Ownership:** Integrations Domain owns provider eligibility. Rendering owns provider loading execution.
+**Ownership:** Integrations capability defines provider eligibility. Rendering owns provider loading execution.
 **Read:** Rendering reads Integrations eligibility decisions to determine which providers to load
 **Write:** Rendering never writes to Integrations configuration
 **Dependency direction:** Rendering depends on Integrations. Integrations does not depend on Rendering.
@@ -472,7 +472,7 @@ Name Renderer       → reads ProfileContent.display_name
 Bio Renderer        → reads ProfileContent.bio
 ```
 
-The block owns placement in the profile. Profile Content owns the actual content.
+The block owns placement in the profile. Profile owns the actual content.
 
 ---
 
@@ -704,15 +704,7 @@ The following specifications define detailed behavior for each Rendering compone
 | `rendering.engine.specification.v1.md` | Rendering Engine | Render Object composition and layout |
 | `layout.system.specification.v1.md` | Layout System | Profile structure definitions |
 | `minime.profile.presentation.system.specification.v1.md` | Profile Presentation | Page assembly and public profile output |
-| `avatar.renderer.specification.v1.md` | Avatar Renderer | Reference renderer for ProfileContent.avatar |
-| `name.renderer.specification.v1.md` | Name Renderer | Reference renderer for ProfileContent.display_name |
-| `bio.renderer.specification.v1.md` | Bio Renderer | Reference renderer for ProfileContent.bio |
-| `image.renderer.specification.v1.md` | Image Renderer | Content renderer for image blocks |
-| `button.renderer.specification.v1.md` | Button Renderer | Content renderer for button blocks |
-| `divider.renderer.specification.v1.md` | Divider Renderer | Content renderer for divider blocks |
-| `title.renderer.specification.v1.md` | Title Renderer | Content renderer for title blocks |
-| `textbox.renderer.specification.v1.md` | Textbox Renderer | Content renderer for textbox blocks |
-| `social-icons.renderer.specification.v1.md` | Social Icons Renderer | Collection reference renderer for Connected Accounts |
+| `block.renderers.specification.v1.md` | All Block Renderers | Per-block-type content contracts (avatar, name, bio, image, button, divider, title, textbox, social-icons) |
 
 ---
 

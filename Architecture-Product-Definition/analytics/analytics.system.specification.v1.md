@@ -71,7 +71,7 @@ Revenue Attribution
 # System Position
 
 ```text
-Public Profile Domain
+Public profile surface
 ↓
 Platform Events
 ↓
@@ -117,7 +117,7 @@ Analytics consumes them.
 
 A Profile View is represented by a canonical `profile.viewed` event.
 
-That event is emitted by the Public Profile domain after the profile has been successfully presented to the visitor.
+That event is emitted by the public profile surface (produced by Rendering) after the profile has been successfully presented to the visitor.
 
 Analytics does not decide whether a view occurred.
 

@@ -234,7 +234,7 @@ Storage is responsible for:
 
 Storage never owns product meaning.
 
-A profile image belongs to Profile Content.
+A profile image belongs to Profile.
 
 The Storage Platform Service only keeps the binary asset that represents it.
 

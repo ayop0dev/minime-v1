@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This specification defines the architecture, ownership boundaries, and operating principles of the Integrations Domain.
+This specification defines the architecture, ownership boundaries, and operating principles of the Integrations capability.
 
-The Integrations Domain exists to connect Minime with approved external services while preserving the independence of the core platform.
+The Integrations capability exists to connect Minime with approved external services while preserving the independence of the core platform.
 
 External services are consumers of Minime.
 
@@ -14,7 +14,7 @@ They never become part of Minime's business architecture.
 
 # Domain Owner
 
-The Integrations Domain owns the lifecycle of approved external integrations.
+The Integrations capability manages the lifecycle of approved external integrations.
 
 It defines:
 
@@ -30,7 +30,7 @@ It never owns business data or business behavior.
 
 # Architectural Role
 
-Within Minime V1, the Integrations Domain acts as an isolated boundary between the platform and third-party services.
+Within Minime V1, the Integrations capability acts as an isolated boundary between the platform and third-party services.
 
 Its responsibility is to expose controlled integration points.
 
@@ -40,7 +40,7 @@ It never exposes unrestricted access to the application.
 
 # Architectural Classification
 
-The Integrations Domain is a **Cross-Cutting Product Capability**.
+The Integrations capability is a **Cross-Cutting Product Capability**.
 
 It is not a Product Domain.
 
@@ -48,11 +48,11 @@ It is not a Platform Service.
 
 ## Why Not a Product Domain
 
-The Integrations Domain owns no product journey stage.
+The Integrations capability owns no product journey stage.
 
-The Integrations Domain owns no canonical entity.
+The Integrations capability owns no canonical entity.
 
-The Integrations Domain does not appear in the Domain Coverage table.
+The Integrations capability does not appear in the Domain Coverage table.
 
 Integrations are optional by design — Minime operates correctly without any configured provider.
 
@@ -60,9 +60,9 @@ Product Domains own business behavior that Minime requires. Integrations is supp
 
 ## Why Not a Platform Service
 
-The Integrations Domain is not infrastructure.
+The Integrations capability is not infrastructure.
 
-The Integrations Domain is not one of the four Platform Services: Data, Storage, Events, AI.
+The Integrations capability is not one of the four Platform Services: Data, Storage, Events, AI.
 
 Platform Services are shared technical capabilities that Minime always requires. Integrations are optional.
 
@@ -70,7 +70,7 @@ Platform Services are shared technical capabilities that Minime always requires.
 
 Integrations applies across all public pages without being owned by any single Product Domain.
 
-The Integrations Domain defines which external services may interact with public pages — independent of the domain that owns the page content.
+The Integrations capability defines which external services may interact with public pages — independent of the domain that owns the page content.
 
 No single Product Domain is responsible for external integration eligibility. Integrations owns this across all of them.
 
@@ -79,7 +79,7 @@ No single Product Domain is responsible for external integration eligibility. In
 | Dimension | Value |
 | --- | --- |
 | Classification | Cross-Cutting Product Capability |
-| Owner | Integrations Domain |
+| Provided By | Integrations capability |
 | Owned Entities | None |
 | Writes To | No domain |
 | Reads From | Provider configuration (user-supplied) |
@@ -89,7 +89,7 @@ No single Product Domain is responsible for external integration eligibility. In
 
 ## Non-Goals
 
-The Integrations Domain does not:
+The Integrations capability does not:
 
 * own any canonical entity
 * write to any Product Domain
@@ -135,13 +135,13 @@ They are never required for Minime to operate.
 
 Each provider owns only its own configuration.
 
-Providers must never communicate with one another through the Integrations Domain.
+Providers must never communicate with one another through the Integrations capability.
 
 ---
 
 # Responsibilities
 
-The Integrations Domain owns:
+The Integrations capability provides:
 
 * provider registration
 * provider validation
@@ -154,7 +154,7 @@ The Integrations Domain owns:
 
 # Non-Responsibilities
 
-The Integrations Domain does not own:
+The Integrations capability does not own:
 
 * profile content
 * account data
@@ -251,7 +251,7 @@ The platform must degrade gracefully.
 
 # V1 Scope
 
-The Integrations Domain supports a single provider:
+The Integrations capability supports a single provider:
 
 * Google Tag Manager
 

@@ -76,7 +76,7 @@ Every Account has one internal identifier.
 Example:
 
 ```text
-account_id = usr_01JXXXX
+account_id = acc_01JXXXX
 ```
 
 The internal Account ID is:
@@ -277,7 +277,7 @@ The internal Account identifier.
 Example:
 
 ```text
-usr_01JXXXX
+acc_01JXXXX
 ```
 
 Rules:
@@ -425,7 +425,7 @@ not:
 profile_id
 ```
 
-Profile Content owns account-owned public content such as:
+Profile owns account-owned public content such as:
 
 ```text
 Display Name
@@ -474,7 +474,7 @@ Theme Definitions are immutable catalog assets managed by the Theme Library, whi
 
 The active theme reference (`selected_theme_id`) and any user customization values are part of the Appearance State within the Profile Content record.
 
-Theme definitions, defaults, constraints, and the Theme Catalog are owned by the Appearance system, not by the Account.
+Theme definitions, defaults, constraints, and the Theme Catalog are immutable catalog assets, not account-owned data.
 
 ---
 

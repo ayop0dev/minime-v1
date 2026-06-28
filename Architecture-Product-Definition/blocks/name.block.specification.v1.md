@@ -73,7 +73,7 @@ If the Name Block already exists, edits must update the existing block instead o
 
 The Name Block does not own display name data.
 
-Display name data belongs to Profile Content.
+Display name data belongs to Profile.
 
 ```text
 Profile Content
@@ -194,7 +194,7 @@ Editing the Name Block must not update:
 ProfileContent.display_name
 ```
 
-Display name editing belongs to Profile Content, not the Name Block.
+Display name editing belongs to Profile, not the Name Block.
 
 ---
 
@@ -325,7 +325,7 @@ The Name Block is not responsible for:
 
 ## Relationship With Profile Content
 
-Profile Content owns:
+Profile owns:
 
 ```text
 ProfileContent.display_name

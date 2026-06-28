@@ -329,7 +329,7 @@ Every approved account must receive a permanent internal identifier.
 Example:
 
 ```text
-usr_01JXXXX
+acc_01JXXXX
 ```
 
 Requirements:
@@ -348,7 +348,7 @@ Approved accounts own their usernames.
 Example:
 
 ```text
-usr_01JXXXX
+acc_01JXXXX
 ↓
 ahmed
 ```
@@ -448,7 +448,5 @@ Social Accounts Setup remains optional.
 ```text
 username.policy.v1.md
 authentication.policy.v1.md
-username.reserved.list.v1.md
-username.system.reserved.list.v1.md
-username.blocked.terms.v1.md
+username.reserved.and.blocked.lists.v1.md
 ```

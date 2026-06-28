@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document defines the architecture, ownership boundaries, responsibilities, and operating principles of the SEO Domain.
+This document defines the architecture, ownership boundaries, responsibilities, and operating principles of the SEO capability.
 
-The SEO Domain exists to describe public Minime pages for search engines and social platforms.
+The SEO capability exists to describe public Minime pages for search engines and social platforms.
 
 It never owns business data.
 
@@ -16,7 +16,7 @@ It only transforms existing public information into standardized SEO output.
 
 # Domain Owner
 
-The SEO Domain owns how public pages are described to search engines, crawlers, and social platforms.
+The SEO capability defines how public pages are described to search engines, crawlers, and social platforms.
 
 ---
 
@@ -32,7 +32,7 @@ SEO never becomes the source of truth for any business information.
 
 # Architectural Classification
 
-The SEO Domain is a **Cross-Cutting Product Capability**.
+The SEO capability is a **Cross-Cutting Product Capability**.
 
 It is not a Product Domain.
 
@@ -40,23 +40,23 @@ It is not a Platform Service.
 
 ## Why Not a Product Domain
 
-The SEO Domain owns no product journey stage.
+The SEO capability owns no product journey stage.
 
-The SEO Domain owns no canonical entity.
+The SEO capability owns no canonical entity.
 
-The SEO Domain has no user-facing lifecycle.
+The SEO capability has no user-facing lifecycle.
 
-The SEO Domain does not appear in the Domain Coverage table.
+The SEO capability does not appear in the Domain Coverage table.
 
 Product Domains own business behavior. SEO generates descriptions of that behavior for external systems.
 
 ## Why Not a Platform Service
 
-The SEO Domain is not infrastructure.
+The SEO capability is not infrastructure.
 
-The SEO Domain reads product-level data (Profile Content, Public Profile, Account, Appearance).
+The SEO capability reads product-level data (Profile Content, Public Profile, Account, Appearance).
 
-The SEO Domain is not one of the four Platform Services: Data, Storage, Events, AI.
+The SEO capability is not one of the four Platform Services: Data, Storage, Events, AI.
 
 Platform Services own shared technical capabilities. SEO is a product-facing read-only capability.
 
@@ -73,17 +73,17 @@ No single Product Domain is responsible for SEO. SEO is responsible to all of th
 | Dimension | Value |
 | --- | --- |
 | Classification | Cross-Cutting Product Capability |
-| Owner | SEO Domain |
+| Provided By | SEO capability |
 | Owned Entities | None |
 | Writes To | No domain |
-| Reads From | Account, Profile Content, Public Profile, Appearance |
+| Reads From | Account, Profile |
 | Produces | Metadata definitions (HTML title, canonical URL, robots, OG, Twitter Card, Structured Data) |
 | Consumed By | Rendering |
 | Dependency Direction | SEO → Rendering (Rendering consumes SEO definitions; SEO does not depend on Rendering) |
 
 ## Non-Goals
 
-The SEO Domain does not:
+The SEO capability does not:
 
 * own any canonical entity
 * write to any domain
@@ -94,9 +94,9 @@ The SEO Domain does not:
 
 ---
 
-# Domain Responsibilities
+# Capability Responsibilities
 
-The SEO Domain owns:
+The SEO capability provides:
 
 * metadata generation
 * canonical URL generation
@@ -113,7 +113,7 @@ The SEO Domain owns:
 
 # Domain Boundaries
 
-The SEO Domain may read:
+The SEO capability may read:
 
 * Profile Content
 * Public Profile
@@ -121,7 +121,7 @@ The SEO Domain may read:
 * Appearance
 * Publishing Status
 
-The SEO Domain never writes to those domains.
+The SEO capability never writes to those domains.
 
 ---
 
@@ -146,7 +146,7 @@ remain owned by their respective domains.
 
 # Generated Assets
 
-The SEO Domain generates:
+The SEO capability generates:
 
 * HTML title
 * Meta description
@@ -250,7 +250,7 @@ Only publicly available information may be transformed into SEO artifacts.
 
 # V1 Constraints
 
-The SEO Domain intentionally excludes:
+The SEO capability intentionally excludes:
 
 * SEO dashboards
 * keyword optimization

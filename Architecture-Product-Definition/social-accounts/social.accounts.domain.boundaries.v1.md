@@ -342,7 +342,7 @@ The Social Accounts domain does not read from Connected Accounts after handoff.
 
 # Public Profile Boundary
 
-The Public Profile domain consumes social account data from Connected Accounts.
+The public profile surface (produced by Rendering) consumes social account data from Connected Accounts.
 
 It does not modify Connected Accounts records.
 

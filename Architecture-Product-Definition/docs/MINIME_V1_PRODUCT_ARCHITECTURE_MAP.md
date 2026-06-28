@@ -208,10 +208,11 @@ Everything included below is considered part of the V1 product architecture.
 - Connected Accounts
 - Profile
 - Rendering
-- Public Profile
 - Out Links
 - Analytics
 
+> **Rendering** produces the visitor experience and serves it as the public rendering surface (the public profile) through public URLs. Public Profile is not a separate domain; it is the public rendering surface produced by Rendering.
+>
 > **Account** is a single domain that owns account identity, account management, settings, and the QR code entry point. Settings, QR Code, and Account Management are not standalone domains.
 >
 > **Profile** is a single domain that owns the profile as one business concept — its profile fields, its blocks, and its design (appearance). Profile fields, blocks, and design are implementation concerns within Profile, not separate business ownership boundaries.
@@ -241,7 +242,7 @@ They own no canonical entity.
 
 SEO generates metadata definitions for all public profiles.
 
-SEO reads from Profile, Public Profile, and Account.
+SEO reads from Profile and Account.
 
 SEO produces metadata definitions (HTML title, canonical URL, robots directives, Open Graph, Twitter Card, Structured Data) that Rendering emits into the final HTML output.
 
@@ -367,8 +368,8 @@ Every domain should have a clear responsibility within the overall product lifec
 | Arrange Blocks             | Profile            |
 | Customize Appearance       | Profile            |
 | Generate Public Profile    | Rendering          |
-| Access Public Profile      | Public Profile     |
-| Share Public Link          | Public Profile     |
+| Access Public Profile      | Rendering          |
+| Share Public Link          | Rendering          |
 | Route Outbound Links       | Out Links          |
 | Track Analytics            | Analytics          |
 
@@ -394,8 +395,7 @@ Together, these domains describe the complete architecture of Minime.
 | Social Accounts    | Collects user-provided social account identifiers, normalizes input, applies platform rules, and generates canonical public profile URLs (Smart Mode and Manual Mode). |
 | Connected Accounts | Stores the social account records produced by Social Accounts Setup.   |
 | Profile            | Owns the profile as one business concept — its profile fields, its blocks, and its design (appearance) — and all content displayed on the public profile. |
-| Rendering          | Generates the public profile from current profile content.             |
-| Public Profile     | Exposes profiles through public URLs.                                  |
+| Rendering          | Generates the public profile from current profile content and serves it as the public rendering surface through public URLs. |
 | Out Links          | Routes outbound traffic and tracks link clicks.                        |
 | Analytics          | Collects and reports profile and link performance metrics.             |
 
@@ -436,15 +436,14 @@ Profile
 Rendering
         │
         ▼
-Public Profile
-        │
-        ▼
 Out Links
         │
         ▼
 Analytics
 
 Profile owns the profile fields, blocks, and design (appearance) as one business concept; these are stages within the Profile domain, not separate domains.
+
+Rendering produces the public profile and serves it as the public rendering surface. The public profile is not a separate domain stage; it is the surface produced by Rendering.
 
 ## Account Domain Scope
 
@@ -488,12 +487,11 @@ Each domain is implemented as an independent specification folder containing all
 | Social Accounts    | `/social-accounts`                                             | `social.accounts.setup.specification.v1.md`        |   ✅   |
 | Connected Accounts | `/account-management`                                          | `connected.accounts.specification.v1.md`           |   ✅   |
 | Profile            | `/profile-content`, `/blocks`, `/appearance`, `/block-styling` | `profile.content.specification.v1.md`              |   ✅   |
-| Rendering          | `/rendering`                                                   | `rendering.architecture.canon.v1.md`               |   ✅   |
-| Public Profile     | `/public-profile`                                              | `public-profile.system.specification.v1.md`        |   ✅   |
+| Rendering          | `/rendering`, `/public-profile`                                | `rendering.architecture.canon.v1.md`               |   ✅   |
 | Out Links          | `/out-links`                                                   | `out-link.system.specification.v1.md`              |   ✅   |
 | Analytics          | `/analytics`                                                   | `analytics.system.specification.v1.md`             |   ✅   |
 
-The Account domain spans the `/account`, `/account-management`, `/settings`, and `/qr-code` folders. The Profile domain spans the `/profile-content`, `/blocks`, `/appearance`, and `/block-styling` folders. These multiple folders are implementation concerns within a single business domain; they are not separate domains.
+The Account domain spans the `/account`, `/account-management`, `/settings`, and `/qr-code` folders. The Profile domain spans the `/profile-content`, `/blocks`, `/appearance`, and `/block-styling` folders. The Rendering domain spans the `/rendering` and `/public-profile` folders, where `/public-profile` is the public rendering surface. These multiple folders are implementation concerns within a single business domain; they are not separate domains.
 
 ## Repository Principles
 
@@ -616,448 +614,3 @@ There are no draft, unpublished, scheduled, preview, or separate live profile st
 * Normal implementation work does not reopen frozen architecture.
 * Architecture decisions are documented before implementation.
 * The Product Map is the practical architectural overview of the product.
-
----
-
-# Repository Freeze Boundary
-
-The Minime V1 Core Architecture is frozen as of 2026-06-27.
-
-This section defines which parts of the repository are frozen and which remain intentionally mutable during V1 implementation.
-
----
-
-## Frozen
-
-The following areas are stable. Changes require one of:
-
-* A proven architectural contradiction
-* An approved new platform capability
-* An approved new product capability that changes architectural boundaries
-* Explicit V2 architecture work
-
-Normal implementation work must never reopen frozen architecture.
-
-### Core Platform Architecture
-
-* Platform Services (Data, Storage, Events, AI)
-* Platform Principles (Single Owner, Shared, Reusable, Independent, Failure Isolation, Idempotency, Validation, Configuration Authority, Architecture Ownership Layers, Runtime Execution, Infrastructure Boundary)
-* Ownership Canon
-* Lifecycle Canon
-* Data Platform specification
-* Storage Platform specification
-* Events Platform specification
-* AI Platform specification
-
-### Core Product Architecture
-
-* All Product Domains and their defined responsibilities
-* Domain Ownership
-* Domain Relationships
-* Rendering Architecture
-* Identity Architecture (`account_id` as canonical root; no `profile_id`; no persisted `user_id`)
-* Public Profile Architecture
-* Account Lifecycle (creation, suspension, deletion cascade)
-* Authentication Policy
-
----
-
-## Mutable
-
-The following areas remain intentionally editable during V1 implementation:
-
-* Product Governance documents
-* Implementation Specifications
-* API Specifications
-* Validation Rules
-* Configuration Values
-* Operational Policies
-* Deployment Configuration
-* Documentation examples
-* Tests
-* Source code
-
-Changes in these areas must not modify frozen architecture without an explicit architecture review.
-
----
-
-## Future Architecture
-
-Future architectural work belongs to:
-
-* Approved new capabilities
-* Platform evolution
-* V2 planning
-
-Future work must not silently modify V1 frozen architecture. V2 work is explicitly separate from V1.
-
----
-
-# Product Governance Phase
-
-The Minime V1 repository is entering its Product Governance phase.
-
-Product Governance is the repository layer responsible for defining business policies within the boundaries already established by the frozen Core Architecture.
-
----
-
-## What Product Governance Is
-
-Product Governance defines business policy. It answers questions such as:
-
-* Should a size limit exist for profile image uploads? What value should it have?
-* What is the exact username reservation expiry duration?
-* What is the maximum total block count per profile?
-* Which events must be present in audit records?
-* Which event consumers are authorized to read which event types?
-
-Product Governance decisions belong to the owning domain specification. They are not Platform Architecture decisions.
-
----
-
-## What Product Governance Is Not
-
-Product Governance is not:
-
-* Platform Architecture
-* Product Architecture
-* A Platform Service
-* A Product Domain
-
-Product Governance must not:
-
-* Redefine ownership
-* Redefine platform boundaries
-* Redefine Product Domains
-* Redefine Platform Services
-* Redefine lifecycle principles
-
-Product Governance operates entirely within the boundaries established by the frozen Core Architecture.
-
----
-
-# Repository Decision Framework
-
-When a new question appears during implementation or future planning, it belongs to exactly one of four places.
-
-| Question | Layer | What To Do |
-|----------|-------|------------|
-| "Who owns this entity or behavior?" | Core Platform Architecture | Check frozen specs — ownership is already defined |
-| "Should this rule or limit exist?" | Product Governance | Define in the owning domain spec — this is a business policy decision |
-| "What value should this limit have?" | Implementation Configuration | Supply in configuration — the owning spec permits this |
-| "Where and how does this run?" | Deployment Environment | Deployment concern — outside Minime ownership |
-
-**The framework rule:** Lower layers implement higher-layer decisions. Higher layers never depend on lower-layer implementation details. A question that reaches the wrong layer is a signal that ownership needs clarification — not that the layer should expand its scope.
-
----
-
-# Repository Change Classification
-
-Every repository change must be classified before implementation begins.
-
-If a proposed change cannot be classified unambiguously, it must undergo an ownership review before implementation begins.
-
-This rule prevents Architecture Drift during implementation.
-
----
-
-## Classification 1 — Core Architecture
-
-Changes that modify:
-
-* ownership rules
-* architectural boundaries
-* Platform Services
-* Product Domains
-* lifecycle principles
-* canonical architecture principles
-* repository architecture structure
-
-These changes are rare. They require an explicit Architecture Review.
-
-Normal implementation work must never be classified as Core Architecture.
-
-**Architecture Review is required when:**
-
-* A proven architectural contradiction is discovered
-* A proven ownership contradiction is discovered
-* A proven lifecycle contradiction is discovered
-* A new Platform Service is proposed
-* A new Product Domain is proposed
-* An architectural boundary change is required
-* An approved new capability requires architecture expansion
-* V2 architecture work begins
-
-Everything else must remain outside Core Architecture.
-
----
-
-## Classification 2 — Product Governance
-
-Business policy changes that operate inside frozen architecture.
-
-Examples:
-
-* limits and quotas
-* validation policies
-* moderation policies
-* retention policies
-* publishing policies
-* reservation policies
-* visibility policies
-* business usage rules
-
-Product Governance changes must never redefine architecture.
-
----
-
-## Classification 3 — Implementation
-
-Specifications and code describing how approved architecture is implemented.
-
-Examples:
-
-* API specifications
-* validation flow
-* endpoint behavior
-* internal algorithms
-* implementation specifications
-* repository source code
-* tests
-
-Implementation must never redefine ownership or architecture.
-
----
-
-## Classification 4 — Configuration
-
-Runtime values explicitly permitted by the owning specification.
-
-Examples:
-
-* upload size values
-* timeout values
-* retry values
-* cache duration values
-* quotas
-* thresholds
-
-Configuration may tune implementation behavior within architecture-approved boundaries.
-
-Configuration must never create business rules.
-
-Configuration must never override architecture.
-
----
-
-## Classification 5 — Deployment
-
-Infrastructure and runtime environment.
-
-Examples:
-
-* hosting
-* backups and replication
-* CDN
-* networking
-* SSL/TLS
-* monitoring
-* scheduling
-* operating systems
-* infrastructure services
-
-Deployment must never redefine product behavior.
-
----
-
-## Classification Hierarchy
-
-```
-Core Architecture
-      ↓
-Product Governance
-      ↓
-Implementation
-      ↓
-Configuration
-      ↓
-Deployment
-```
-
-Lower layers implement higher-layer decisions.
-
-Higher layers never depend on lower-layer implementation details.
-
-A change attempting to move upward in the hierarchy — for example, a Configuration change that creates a new business rule, or an Implementation change that redefines ownership — must be rejected and reclassified before it proceeds.
-
----
-
-# V1 Architecture Status
-
-This section tracks the architectural maturity of every domain within Minime V1.
-
-A domain progresses through the following stages:
-
-* ✅ Complete — Architecture is finalized, validated, and considered stable.
-
-* 🚧 In Progress — Architecture exists but is still being refined.
-
-* ⏸ Planned — Included in V1 but architecture work has not yet started.
-
-| Domain             | Status |
-| ------------------ | :----: |
-| Product Map        |    ✅   |
-| Account            |    ✅   |
-| Authentication     |    ✅   |
-| Username           |    ✅   |
-| Social Accounts    |    ✅   |
-| Connected Accounts |    ✅   |
-| Profile            |    ✅   |
-| Rendering          |    ✅   |
-| Public Profile     |    ✅   |
-| Out Links          |    ✅   |
-| Analytics          |    ✅   |
-
----
-
-## Repository Status
-
-### Architecture Discovery
-
-Complete
-
-### Architecture Canon
-
-Stabilized
-
-### Rendering Canon
-
-Frozen
-
-### Identity Model
-
-Finalized
-
-### Ownership Model
-
-Finalized
-
-### Repository Cleanup
-
-Complete
-
-### Repository Canon Validation
-
-Complete
-
-### Documentation Synchronization
-
-Complete
-
-### Core Architecture Freeze
-
-Complete — 2026-06-27
-
-### Product Governance Phase
-
-Active
-
----
-
-# Appendix A — Foundational Decisions
-
-This appendix records the architectural decisions that established the foundation of Minime V1.
-
-Unlike the Architecture Canon, which defines the rules that every specification must follow, this appendix documents the decisions that created those rules.
-
-These decisions should rarely change and represent the architectural history of the project.
-
----
-
-## Identity Model
-
-* Account is the single aggregate root.
-* Profile is not a persisted entity.
-* User is not a persisted entity.
-* Every owned resource references `account_id`.
-
----
-
-## Ownership Model
-
-* Every resource belongs to exactly one account.
-* `account_id` is the canonical ownership identifier across the repository.
-* `owner_account_id` has been removed.
-* `profile_id` has been removed.
-* Persisted `user_id` ownership has been removed.
-
----
-
-## Rendering Architecture
-
-* Rendering is completely stateless.
-* Rendering is generated exclusively from current persisted profile content.
-* Rendering never stores or owns data.
-* Rendering Canon is frozen.
-
----
-
-## Social Accounts Model
-
-* Social Accounts replaces the retired Discovery Engine concept.
-* Social Accounts collects user-provided social account identifiers only.
-* Social Accounts normalizes input and generates canonical public profile URLs.
-* Social Accounts never discovers, searches, or verifies accounts.
-* Social Accounts never communicates with external social platforms.
-
----
-
-## Repository Organization
-
-* The repository is organized around architecture domains.
-
-* Every specification belongs to exactly one domain.
-
-* Every domain owns one primary specification.
-
-* The Product Map is the practical architectural overview of the product.
-
----
-
-## Architecture Governance
-
-* Architecture evolves through Product Map updates before specification updates.
-
-* No new domain should be introduced until it has a clearly defined responsibility within the Product Map.
-
-* No new repository folder should be created until a corresponding architecture domain has been established.
-
-* Every specification must support an existing domain.
-
-* Repository-wide cleanup, terminology alignment, reference validation, and Canon Freeze are performed only after all V1 architecture domains have been completed.
-
----
-
-## Architectural Milestones
-
-The following foundational milestones have been completed during the Architecture Discovery phase.
-
-* Rendering Architecture Canon finalized.
-
-* Repository-wide Rendering propagation completed.
-
-* Rendering validation completed.
-
-* Identity Model finalized.
-
-* `profile_id` removed.
-
-* Persisted `user_id` removed.
-
-* `owner_account_id` removed.
-
-* `account_id` established as the single canonical ownership identifier.
-
-* Repository architecture stabilized.
-
-* Product Map established as the architectural source of truth.

@@ -73,7 +73,7 @@ If the Avatar Block already exists, edits must update the existing block instead
 
 The Avatar Block does not own avatar image data.
 
-Avatar image data belongs to Profile Content.
+Avatar image data belongs to Profile.
 
 ```text
 Profile Content
@@ -194,7 +194,7 @@ Editing the Avatar Block must not update:
 ProfileContent.avatar
 ```
 
-Avatar image editing belongs to Profile Content, not the Avatar Block.
+Avatar image editing belongs to Profile, not the Avatar Block.
 
 ---
 
@@ -326,7 +326,7 @@ The Avatar Block is not responsible for:
 
 ## Relationship With Profile Content
 
-Profile Content owns:
+Profile owns:
 
 ```text
 ProfileContent.avatar

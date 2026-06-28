@@ -26,7 +26,7 @@ Users should never be required to manually configure structured data.
 
 # Ownership
 
-The SEO Domain owns structured data generation.
+The SEO capability provides structured data generation.
 
 It does not own the profile information used to generate it.
 
@@ -112,7 +112,7 @@ Only publicly available information may appear.
 
 # Rendering Contract
 
-The SEO Domain defines structured data.
+The SEO capability defines structured data.
 
 The Rendering Domain serializes it into the final HTML document.
 

@@ -33,7 +33,7 @@ Those responsibilities belong to their own systems.
 
 # Definition
 
-Profile Content owns the collection of Blocks displayed on the public profile.
+Profile owns the collection of Blocks displayed on the public profile.
 
 Blocks represent the content units shown on a profile.
 
@@ -53,7 +53,7 @@ Textbox
 
 Profile Content does not own block implementation.
 
-Profile Content owns block references.
+Profile owns block references.
 
 ---
 
@@ -110,7 +110,7 @@ Block Settings
 Block Validation
 ```
 
-Profile Content owns:
+Profile owns:
 
 ```text
 Block Collection
@@ -148,7 +148,7 @@ The collection defines which Blocks belong to the Account.
 
 # Ordering Ownership
 
-Profile Content owns block ordering.
+Profile owns block ordering.
 
 The Block itself does not decide where it appears.
 
@@ -166,7 +166,7 @@ Button
 Button
 ```
 
-This order belongs to Profile Content.
+This order belongs to Profile.
 
 Not to the individual Blocks.
 
@@ -448,7 +448,7 @@ Block Lifecycle
 Block Validation
 ```
 
-Profile Content owns:
+Profile owns:
 
 ```text
 Which Blocks Belong To The Account
@@ -519,7 +519,7 @@ Blocks
 
 The Account owns the Profile Content.
 
-The Profile Content owns the block collection.
+Profile owns the block collection.
 
 The Block System owns the Blocks themselves.
 

@@ -311,7 +311,7 @@ Both feed into Rendering without owning rendering behavior.
 
 ## SEO Contract
 
-The SEO Domain defines what metadata must exist for every public page.
+The SEO capability defines what metadata must exist for every public page.
 
 The Rendering Engine is responsible for emitting that metadata into the final HTML output.
 
@@ -328,7 +328,7 @@ The Rendering Engine must never:
 * override robots directives, canonical URLs, or Open Graph values
 * decide indexing behavior
 
-The SEO Domain must never:
+The SEO capability must never:
 
 * directly emit HTML
 * modify Render Objects
@@ -345,7 +345,7 @@ SEO does not depend on Rendering.
 
 ## Integrations Contract
 
-The Integrations Domain defines which external providers are eligible to load on a public page.
+The Integrations capability defines which external providers are eligible to load on a public page.
 
 The Rendering Engine is responsible for activating approved providers during public page generation.
 
@@ -362,7 +362,7 @@ The Rendering Engine must never:
 * bypass Integrations eligibility rules
 * expose the platform to unapproved external code
 
-The Integrations Domain must never:
+The Integrations capability must never:
 
 * directly execute provider loading
 * modify Render Objects
@@ -405,9 +405,9 @@ Layout Application
 
 Render Object Consumption
 
-SEO Metadata Emission (defined by SEO Domain)
+SEO Metadata Emission (defined by SEO capability)
 
-Integration Provider Loading (approved by Integrations Domain)
+Integration Provider Loading (approved by Integrations capability)
 ```
 
 Not Supported:

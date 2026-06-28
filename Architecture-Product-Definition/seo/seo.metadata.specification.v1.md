@@ -24,7 +24,7 @@ SEO metadata must never become the source of truth.
 
 # Ownership
 
-The SEO Domain owns metadata generation.
+The SEO capability provides metadata generation.
 
 It does not own the underlying profile information.
 
@@ -188,7 +188,7 @@ Hidden, draft, private, or restricted information must never be exposed through 
 
 Rendering is responsible for emitting metadata into the final HTML document.
 
-The SEO Domain is responsible for defining what metadata exists.
+The SEO capability is responsible for defining what metadata exists.
 
 The Rendering Domain must not invent metadata independently.
 

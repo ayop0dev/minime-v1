@@ -73,7 +73,7 @@ If the Bio Block already exists, edits must update the existing block instead of
 
 The Bio Block does not own bio data.
 
-Bio data belongs to Profile Content.
+Bio data belongs to Profile.
 
 ```text
 Profile Content
@@ -194,7 +194,7 @@ Editing the Bio Block must not update:
 ProfileContent.bio
 ```
 
-Bio editing belongs to Profile Content, not the Bio Block.
+Bio editing belongs to Profile, not the Bio Block.
 
 ---
 
@@ -327,7 +327,7 @@ The Bio Block is not responsible for:
 
 ## Relationship With Profile Content
 
-Profile Content owns:
+Profile owns:
 
 ```text
 ProfileContent.bio

@@ -57,7 +57,7 @@ No additional event types exist.
 
 ---
 
-# Source 1 — Public Profile Domain
+# Source 1 — Public Profile Surface
 
 Purpose:
 
@@ -65,7 +65,7 @@ Purpose:
 Profile View Measurement
 ```
 
-The Public Profile domain emits:
+The public profile surface (produced by Rendering) emits:
 
 ```text
 profile.viewed
@@ -81,7 +81,7 @@ Analytics does not decide whether a view occurred.
 
 # Profile View Event
 
-A `profile.viewed` event is emitted by the Public Profile domain after the profile has been successfully presented to the visitor.
+A `profile.viewed` event is emitted by the public profile surface (produced by Rendering) after the profile has been successfully presented to the visitor.
 
 ---
 
@@ -211,7 +211,7 @@ Business domains own event creation.
 Examples:
 
 ```text
-Public Profile Domain emits profile.viewed
+Public profile surface emits profile.viewed
 Out Link Domain emits out_link.followed
 ```
 

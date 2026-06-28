@@ -83,7 +83,7 @@ These inputs are required for resolution.
 
 Ownership note:
 
-Theme Defaults, Theme Configuration, and Theme Constraints are owned by the Appearance system.
+Theme Defaults, Theme Configuration, and Theme Constraints are provided by the Appearance area.
 The Style Resolution System receives them as external inputs.
 It does not own or produce them.
 

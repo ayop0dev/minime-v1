@@ -102,7 +102,7 @@ This separation keeps Minime simple, predictable, and extensible.
 
 # Domain Responsibility
 
-Appearance owns every decision that affects the visual presentation of a profile.
+Appearance is responsible for every decision that affects the visual presentation of a profile.
 
 Its responsibility is limited to visual configuration.
 
@@ -133,10 +133,10 @@ Appearance is responsible only for visual configuration.
 
 ---
 
-# What Appearance Owns
+# What Appearance Is Responsible For
 
 ```text
-[Conceptual Architecture — Domain Ownership]
+[Appearance — Responsibility Areas]
 
 Appearance
 │
@@ -151,7 +151,7 @@ Appearance
 └── Appearance State
 ```
 
-These are the only responsibilities owned by the Appearance system.
+These are the only responsibilities handled by the Appearance system.
 
 ---
 
@@ -326,9 +326,9 @@ Those responsibilities belong exclusively to the Rendering Domain.
 
 # Relationship With Blocks
 
-Blocks own profile content.
+Profile owns profile content and presentation.
 
-Appearance owns profile presentation.
+Within the Profile domain, blocks participate in placement and rendering, while the Appearance system handles visual configuration.
 
 Blocks never own:
 
@@ -369,7 +369,7 @@ The two domains have independent responsibilities.
 
 Account owns identity.
 
-Appearance owns presentation.
+Appearance is responsible for presentation.
 
 The ownership chain is:
 
@@ -410,7 +410,7 @@ Appearance is **not**:
 * a runtime system
 * a page composition engine
 
-Appearance owns only profile visual configuration.
+Appearance is responsible only for profile visual configuration.
 
 Any responsibility outside that boundary belongs to another domain.
 
@@ -674,7 +674,7 @@ Appearance ends when Rendering receives the resolved Appearance State.
 
 Anything after that belongs to Rendering.
 
-Anything before that belongs to Profile Content or the Design editor.
+Anything before that belongs to Profile or the Design editor.
 
 Appearance never crosses these boundaries.
 
@@ -753,7 +753,7 @@ Appearance is part of the Profile domain (its design area).
 
 ## Canon 2
 
-Appearance owns visual configuration.
+Appearance is responsible for visual configuration.
 
 Rendering owns visual production.
 
@@ -819,7 +819,7 @@ All runtime execution belongs to the Rendering Domain.
 
 ## Canon 10
 
-Appearance owns visual decisions.
+Appearance is responsible for visual decisions.
 
 Rendering owns visual implementation.
 

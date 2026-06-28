@@ -369,63 +369,15 @@ Check Availability
 
 # Block Lists
 
-Three independent block lists exist.
-
-## Premium Reserved Names
-
-Defined in:
+Three independent block lists exist, all defined in:
 
 ```text
-username.reserved.list.v1.md
+username.reserved.and.blocked.lists.v1.md
 ```
 
-Examples:
-
-```text
-nike
-google
-messi
-cristiano
-```
-
----
-
-## System Reserved Names
-
-Defined in:
-
-```text
-username.system.reserved.list.v1.md
-```
-
-Examples:
-
-```text
-admin
-api
-dashboard
-login
-signup
-```
-
----
-
-## Blocked Terms
-
-Defined in:
-
-```text
-username.blocked.terms.v1.md
-```
-
-Examples:
-
-```text
-offensive
-abusive
-illegal
-restricted terms
-```
+- **System Reserved** — platform routes and internal functionality (e.g. `admin`, `api`, `login`, `signup`).
+- **Brand & Identity Reserved** — brands, public figures, organizations (e.g. `nike`, `google`, `messi`, `cristiano`).
+- **Blocked Terms** — offensive, abusive, illegal, or otherwise restricted terms.
 
 ---
 

@@ -33,7 +33,7 @@ Appearance State belongs exclusively to the Appearance system.
 
 # 3. Ownership
 
-Appearance State is owned by the Appearance system.
+Appearance State is owned by Profile.
 
 Only the Appearance system may create, modify, validate, or persist Appearance State.
 
