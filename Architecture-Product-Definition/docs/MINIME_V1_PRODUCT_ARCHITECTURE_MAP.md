@@ -94,7 +94,7 @@ Minime is a Personal Branding Operating System that enables individuals to build
 
 Rather than simply aggregating links, Minime enables users to build a structured, professional, and evolving public identity — combining social account setup, profile creation, visual profile building, sharing, analytics, and AI assistance into one unified experience.
 
-V1 focuses on delivering the simplest possible experience for building and managing a personal brand while establishing a scalable architectural foundation for future AI-powered capabilities.
+V1 focuses on delivering the simplest possible experience for building and managing a personal brand while establishing a scalable architectural foundation for expanded AI capabilities in future versions.
 
 ---
 
@@ -132,7 +132,7 @@ Minime combines social account setup, profile creation, visual profile building,
 
 Minime is built around an account-centric architecture where every resource belongs to exactly one account.
 
-Minime is designed to simplify personal branding while remaining scalable for future AI-powered capabilities.
+Minime is designed to simplify personal branding while remaining scalable for expanded AI capabilities in future versions.
 
 ---
 
@@ -257,6 +257,8 @@ Included capabilities:
 
 AI assists users.
 AI never replaces user decisions.
+
+AI is optional. The platform operates fully with AI completely disabled. AI is included in V1 because it provides immediate, practical user value within an intentionally narrow scope — consistent with the principle that Minime grows by necessity, never by speculation.
 
 ---
 

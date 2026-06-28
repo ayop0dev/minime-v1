@@ -152,7 +152,7 @@ Typical normalization includes:
 * remove tracking parameters
 * remove unnecessary trailing slashes
 * remove leading platform symbols when applicable
-* apply lowercase according to platform rules
+* apply case normalization according to platform rules
 
 Normalization exists only to standardize formatting.
 

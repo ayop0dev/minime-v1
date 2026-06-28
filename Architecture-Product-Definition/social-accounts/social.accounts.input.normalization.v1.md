@@ -305,7 +305,7 @@ HMN
 hmn
 ```
 
-If a future platform requires case preservation, its platform rule overrides this behavior.
+If a platform requires case preservation or has platform-specific case rules, its platform rule governs and takes precedence over lowercase normalization.
 
 ---
 

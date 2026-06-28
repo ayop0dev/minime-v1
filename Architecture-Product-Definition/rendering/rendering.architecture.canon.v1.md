@@ -639,7 +639,7 @@ Future rendering evolution may extend:
 * Additional SEO metadata formats
 * Additional integration providers
 * Performance improvements to the rendering pipeline
-* Caching strategies within the rendering layer
+* Caching strategies in the public delivery layer
 
 ---
 

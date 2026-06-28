@@ -398,7 +398,7 @@ Rendering Must Be Deterministic
 
 # Stateless Rendering
 
-Rendering should be stateless.
+Rendering is stateless.
 
 Rule:
 
@@ -408,7 +408,7 @@ Same Input
 Same Output
 ```
 
-The Renderer should not store rendering state.
+The Renderer must not store rendering state.
 
 ---
 
