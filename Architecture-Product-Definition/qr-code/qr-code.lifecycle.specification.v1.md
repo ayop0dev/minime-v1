@@ -4,7 +4,7 @@
 
 **Version:** 1.0
 **Status:** Approved
-**Domain:** QR Code
+**Domain:** Account
 
 ---
 

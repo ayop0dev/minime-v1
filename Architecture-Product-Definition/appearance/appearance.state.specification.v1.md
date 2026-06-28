@@ -4,7 +4,7 @@
 
 **Version:** 1.0
 **Status:** Approved
-**Domain:** Appearance
+**Domain:** Profile
 **Architecture Status:** Frozen
 
 ---

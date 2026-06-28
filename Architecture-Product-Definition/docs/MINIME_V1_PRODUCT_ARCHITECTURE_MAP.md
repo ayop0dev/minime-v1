@@ -70,10 +70,6 @@ Profile Ownership
 
 Every resource belongs to exactly one account.
 
-Repository Status
-
-Core Architecture Frozen — Product Governance Phase
-
 ---
 
 # Purpose
@@ -89,22 +85,6 @@ This document intentionally remains implementation-independent. It defines what 
 **Architectural View:** This document is the conceptual overview of the product. It describes domain ownership and domain dependency order. It does not describe runtime execution sequences, persistence structures, or technical infrastructure. Persistence structures and runtime flows are documented separately.
 
 When a new feature, domain, folder, or specification is introduced, it should have a clear place within this overview before detailed specifications are created.
-
----
-
-# Document Status
-
-Status
-
-Active
-
-Version
-
-V1
-
-Applies To
-
-Entire Repository
 
 ---
 
@@ -127,8 +107,6 @@ The following principles shape every architectural and product decision within M
 - **Account-centric.** Every resource belongs to exactly one account. The account is the single aggregate root throughout the entire product lifecycle.
 
 - **Single responsibility.** Every domain owns one clearly defined responsibility. No domain absorbs the concerns of another.
-
-- **Specification-first.** Architecture decisions are documented before implementation. No specification is created without a corresponding place in the Product Map.
 
 - **Stateless rendering.** The public profile is assembled from current profile content at the point of access. The rendering layer never stores or owns data.
 
@@ -479,17 +457,17 @@ The repository structure is the physical implementation of that architecture.
 
 Each domain is implemented as an independent specification folder containing all documents related to that responsibility.
 
-| Domain             | Repository Folder(s)                                            | Primary Specification                              | Status |
-| ------------------ | -------------------------------------------------------------- | -------------------------------------------------- | :----: |
-| Account            | `/account`, `/account-management`, `/settings`, `/qr-code`     | `account.model.specification.v1.md`                |   ✅   |
-| Authentication     | `/account`                                                     | `authentication.policy.v1.md`                      |   ✅   |
-| Username           | `/account`                                                     | `username.policy.v1.md`                            |   ✅   |
-| Social Accounts    | `/social-accounts`                                             | `social.accounts.setup.specification.v1.md`        |   ✅   |
-| Connected Accounts | `/account-management`                                          | `connected.accounts.specification.v1.md`           |   ✅   |
-| Profile            | `/profile-content`, `/blocks`, `/appearance`, `/block-styling` | `profile.content.specification.v1.md`              |   ✅   |
-| Rendering          | `/rendering`, `/public-profile`                                | `rendering.architecture.canon.v1.md`               |   ✅   |
-| Out Links          | `/out-links`                                                   | `out-link.system.specification.v1.md`              |   ✅   |
-| Analytics          | `/analytics`                                                   | `analytics.system.specification.v1.md`             |   ✅   |
+| Domain             | Repository Folder(s)                                            | Primary Specification                              |
+| ------------------ | -------------------------------------------------------------- | -------------------------------------------------- |
+| Account            | `/account`, `/account-management`, `/settings`, `/qr-code`     | `account.model.specification.v1.md`                |
+| Authentication     | `/account`                                                     | `authentication.policy.v1.md`                      |
+| Username           | `/account`                                                     | `username.policy.v1.md`                            |
+| Social Accounts    | `/social-accounts`                                             | `social.accounts.setup.specification.v1.md`        |
+| Connected Accounts | `/account-management`                                          | `connected.accounts.specification.v1.md`           |
+| Profile            | `/profile-content`, `/blocks`, `/appearance`, `/block-styling` | `profile.content.specification.v1.md`              |
+| Rendering          | `/rendering`, `/public-profile`                                | `rendering.architecture.canon.v1.md`               |
+| Out Links          | `/out-links`                                                   | `out-link.system.specification.v1.md`              |
+| Analytics          | `/analytics`                                                   | `analytics.system.specification.v1.md`             |
 
 The Account domain spans the `/account`, `/account-management`, `/settings`, and `/qr-code` folders. The Profile domain spans the `/profile-content`, `/blocks`, `/appearance`, and `/block-styling` folders. The Rendering domain spans the `/rendering` and `/public-profile` folders, where `/public-profile` is the public rendering surface. These multiple folders are implementation concerns within a single business domain; they are not separate domains.
 
@@ -610,7 +588,4 @@ There are no draft, unpublished, scheduled, preview, or separate live profile st
 * Every specification belongs to exactly one domain.
 * Every domain owns one primary specification.
 * Cross-domain coupling should remain minimal.
-* Architecture evolves through Product Map updates first.
-* Normal implementation work does not reopen frozen architecture.
-* Architecture decisions are documented before implementation.
 * The Product Map is the practical architectural overview of the product.
