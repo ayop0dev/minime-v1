@@ -116,7 +116,7 @@ Soft-deleted records are excluded from all queries by default.
 | `username` | TEXT | NOT NULL, UNIQUE | a-z/0-9, length 3–30, lowercase only, set at registration, not editable in V1 |
 | `status` | AccountStatus | NOT NULL, DEFAULT 'active' | active \| suspended \| deleted |
 | `settings` | JSONB | NOT NULL, DEFAULT '{}' | account preferences (notification prefs, etc.) |
-| `qr_config` | JSONB | NOT NULL, DEFAULT '{}' | QR code configuration (color, format) |
+| `qr_config` | JSONB | NOT NULL, DEFAULT '{}' | QR code configuration: `{color, format, storage_key}`. `storage_key` is the Object Storage key for the generated QR SVG; null until first generated. |
 | `created_at` | TIMESTAMP | NOT NULL | UTC |
 | `updated_at` | TIMESTAMP | NOT NULL | UTC, updated on every write |
 
@@ -141,6 +141,26 @@ Soft-deleted records are excluded from all queries by default.
 - No `profile_id` column (no Profile entity)
 - No `email` or `phone` column (authentication identities live in `AuthCredential`)
 - No `display_name`, `bio`, or `avatar` columns (profile content lives in `ProfileContent`)
+
+**qr_config field structure:**
+
+```
+qr_config = {
+  color:       string | null,
+  format:      string | null,
+  storage_key: string | null
+}
+```
+
+- `color`: QR foreground color (hex) or null for default.
+- `format`: Always `'svg'` in V1.
+- `storage_key`: Opaque Object Storage key for the generated QR SVG asset. Null until first QR is generated. Must never be exposed in API responses.
+
+**QR generation rules:**
+- QR is generated lazily on first `GET /api/v1/account/qr-code` if `storage_key` is null.
+- `storage_key` is cleared when QR config changes via `updateQrCodeConfiguration`, forcing regeneration on next request.
+- QR binary is owned by StoragePlatform. Only the storage key is persisted on Account.
+- Account deletion must delete the QR storage asset if `storage_key` is set (handled by the `account.deletion.cascade` job via `AccountService.deleteQrAsset`).
 
 ---
 
@@ -320,7 +340,7 @@ Soft-deleted records are excluded from all queries by default.
 - `ProfileContent` is created immediately when Account is created.
 - There is no `profile_id`. `account_id` uniquely identifies the profile.
 - There is no `status`, `published_at`, or `is_published` field. The profile has no publishing workflow.
-- `appearance_config.selected_theme_id` references an immutable theme catalog asset (not a persisted entity in this schema).
+- `appearance_config.selected_theme_id` references an immutable theme catalog defined in `packages/config/themes.ts` (not a persisted entity in this schema). Theme IDs are validated against this catalog at write time.
 - Avatar binary content lives in Object Storage. Only the storage key is persisted here.
 
 **Contact field structure:**
@@ -410,8 +430,10 @@ appearance_config = {
 
 | Category | Block Types | Limit |
 |---|---|---|
-| Identity blocks | `avatar`, `name`, `bio` | Max 1 per account |
-| Content blocks | `image`, `social_icons`, `button`, `divider`, `title`, `textbox` | Unlimited |
+| Identity blocks | `avatar`, `name`, `bio` | Max 1 per account each |
+| All blocks (total) | All types combined | MAX_BLOCKS_PER_ACCOUNT per account |
+
+**MAX_BLOCKS_PER_ACCOUNT** (canonical definition — implementation default: 100). This is a V1 operational safety limit, not a pricing feature. Block creation must be rejected when total active block count reaches this limit. Changing the default value does not require architectural redesign. Do not introduce plan tiers.
 
 ---
 
@@ -523,6 +545,7 @@ appearance_config = {
 | `destination_url` | TEXT | NOT NULL | resolved external URL, immutable snapshot |
 | `label_snapshot` | TEXT | NULLABLE | label text captured at creation time, immutable |
 | `source_snapshot` | JSONB | NOT NULL | full snapshot of source block state at creation time, immutable |
+| `connected_account_id` | TEXT | NULLABLE | ConnectedAccount ID for social_icons block OutLinks; null for button block OutLinks; immutable |
 | `status` | OutLinkStatus | NOT NULL, DEFAULT 'active' | created \| active \| archived |
 | `archived_at` | TIMESTAMP | NULLABLE | set when status = 'archived'; null while active |
 | `created_at` | TIMESTAMP | NOT NULL | UTC |
@@ -540,6 +563,7 @@ appearance_config = {
 - `(account_id, status)` — list active out links per account
 - `public_id` — `/out/{public_id}` resolution
 - `(account_id, created_at)` — ordered list
+- `(block_id, connected_account_id)` — rendering lookup: resolves active OutLink per clickable icon within a social_icons block, or per button block
 
 **Lifecycle:**
 
@@ -548,7 +572,11 @@ appearance_config = {
 **Notes:**
 
 - OutLink is separate from the `button` block. A button block embeds a URL directly. An OutLink is a managed redirect with click tracking.
-- `destination_url`, `label_snapshot`, `source_snapshot`, `block_id`, `block_type`, `public_id` are all immutable after creation.
+- `destination_url`, `label_snapshot`, `source_snapshot`, `block_id`, `block_type`, `public_id`, `connected_account_id` are all immutable after creation.
+- A `button` block creates exactly one OutLink (`connected_account_id` = null). A `social_icons` block creates one OutLink per entry in `content.accounts`, with `connected_account_id` set to the corresponding ConnectedAccount ID.
+- When a ConnectedAccount is removed from a social_icons block, its OutLink is archived. When a social_icons block is deleted, all its OutLinks are archived.
+- Raw social destination URLs must not appear in public render payloads. Rendering always uses `/out/{public_id}` per icon.
+- If no active OutLink exists for a button block or for a specific social icon, that link is omitted from the rendered output.
 - Public outbound navigation always executes through the Out Links domain (never directly).
 - The internal `id` is never exposed publicly. Only `public_id` appears in public routes.
 
@@ -737,7 +765,7 @@ The following operations require a database transaction:
 |---|---|
 | Complete registration | `UsernameReservation` delete + `Account` create + `AuthCredential` create + `ProfileContent` create |
 | Block reorder | Multiple `Block` sort_order updates |
-| Account deletion | `AccountService.deleteAccount` executes two steps: (1) `Account.status = 'deleted'`; (2) publishes `account.deleted` event. Sessions are invalidated synchronously via in-process EventEmitter handler (AuthService.revokeAllSessions). A second EventEmitter handler enqueues the `account.deletion.cascade` BullMQ job for durable cross-domain cleanup. The cascade job executes: OutLinks hard-deleted → AnalyticsEvents hard-deleted (profile_view by account_id; link_click by out_link_ids) → ProfileContent hard-deleted (includes `appearance_config` JSONB field) → Blocks hard-deleted → ImageAssets hard-deleted (StoragePlatform.delete per asset) → ConnectedAccounts hard-deleted → Binary avatar asset physically deleted. The Account record is retained permanently. No separate QR entity (`qr_config` is a JSONB field on Account, retained). No AppearanceState entity (`appearance_config` is a JSONB field on ProfileContent, deleted with ProfileContent). No AI decisions entity in V1. Cascade order and idempotency rules: see `10-background-jobs.md` — Job 8. |
+| Account deletion | `AccountService.deleteAccount` executes two steps: (1) `Account.status = 'deleted'`; (2) publishes `account.deleted` event. Sessions are invalidated synchronously via in-process EventEmitter handler (AuthService.revokeAllSessions). A second EventEmitter handler enqueues the `account.deletion.cascade` BullMQ job for durable cross-domain cleanup. The cascade job executes in order: (1) collect out_link_ids via OutLinksService.getAccountOutLinkIds (read-only, before any deletion); (2) AnalyticsEvents hard-deleted (profile_view by account_id; link_click by out_link_ids) — analytics deleted before OutLinks to guarantee idempotency on retry; (3) OutLinks hard-deleted; (4) ProfileContent hard-deleted (includes `appearance_config` JSONB field); (5) Blocks hard-deleted; (6) ImageAssets hard-deleted (StoragePlatform.delete per asset); (7) ConnectedAccounts hard-deleted; (8) Binary avatar asset physically deleted; (9) QR storage asset deleted if `Account.qr_config.storage_key` is set (AccountService.deleteQrAsset). The Account record is retained permanently. No separate QR entity (`qr_config` is a JSONB field on Account, retained with Account). No AppearanceState entity (`appearance_config` is a JSONB field on ProfileContent, deleted with ProfileContent). No AI decisions entity in V1. Cascade order and idempotency rules: see `10-background-jobs.md` — Job 8. |
 
 ---
 

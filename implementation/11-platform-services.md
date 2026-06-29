@@ -104,7 +104,7 @@ Avatar and asset URLs are constructed via `StoragePlatform.buildPublicUrl(key)`.
 
 **Pattern:** `<STORAGE_CDN_BASE>/<key>` where `STORAGE_CDN_BASE` is an environment-configured value.
 
-**Account deletion asset cleanup:** During the account deletion cascade, `ProfileService.deleteAccountData` calls `StoragePlatform.delete(avatar_storage_key)` if set. This executes within the `account.deletion.cascade` BullMQ job. Storage Platform orphan cleanup handles any assets that escape the explicit deletion call.
+**Account deletion asset cleanup:** During the account deletion cascade, `ProfileService.deleteAccountData` calls `StoragePlatform.delete(storage_key)` for each ImageAsset owned by the account, and calls `StoragePlatform.delete(avatar_storage_key)` if set. Both execute within the `account.deletion.cascade` BullMQ job. Storage Platform orphan cleanup handles any binary assets that escape the explicit deletion calls.
 
 **QR code assets:** The generated SVG storage key is persisted in `Account.qr_config.storage_key`. `StoragePlatform.buildPublicUrl(storage_key)` produces the downloadable QR asset URL.
 
@@ -124,11 +124,11 @@ Direct key interpolation must not be used. URL construction must always go throu
 
 ```
 StoragePlatform.upload(file: Buffer, mimeType: string, assetType: 'avatar' | 'image' | 'qr'):
-  Promise<{ key: string }>
+  Promise<{ key: string, mime_type: string, width: number, height: number, file_size: number }>
   — Validates MIME type against assetType allowlist.
   — Enforces maximum file size (environment-configured).
   — Converts to canonical format (WebP for images, SVG for QR codes).
-  — Returns opaque storage key.
+  — Returns opaque storage key and processed asset metadata (mime_type, width, height, and file_size reflect the stored output after format conversion).
   — Rejects executable file types unconditionally.
 
 StoragePlatform.delete(key: string): Promise<void>
@@ -241,6 +241,31 @@ Per `08-security-model.md` — AI Security:
 - AI responses are treated as untrusted input. Validate before presenting to the user.
 - AI responses must never be applied to business state without explicit user confirmation.
 - AI responses must never appear in security-sensitive contexts (authentication, authorization decisions).
+- AI Platform failures must be logged but must not interrupt product domain operations.
+
+---
+
+### AI Platform Provider Configuration
+
+V1 AI provider is configured entirely through environment variables. No provider configuration is stored in the database.
+
+**Required environment variables:**
+
+| Variable | Description | Default |
+|---|---|---|
+| `AI_PROVIDER` | Provider identifier. Fully implementation-configurable. | see `.env.example` |
+| `AI_MODEL_ID` | Model ID within the configured provider. Fully implementation-configurable. | see `.env.example` |
+| `AI_API_KEY` | Provider API key. Never logged or exposed. | — (required) |
+| `AI_MAX_REQUESTS_PER_MINUTE` | Max AI calls per account per minute. | `10` |
+| `AI_TIMEOUT_MS` | Maximum milliseconds to wait for an AI response. | `10000` |
+
+**Prompt templates** live in `packages/config/ai-prompts.ts`. They are application code, not database entities. They must not be user-editable.
+
+**Operational rules:**
+- If `AI_API_KEY` is absent or empty: AI suggestions are disabled. All AiPlatform methods return empty arrays; no error is thrown.
+- All AI calls must respect `AI_MAX_REQUESTS_PER_MINUTE` per account. Exceeding the limit returns an empty array; never throws to the caller.
+- AI calls must time out after `AI_TIMEOUT_MS`. Timeout returns empty array; never throws.
+- Provider and model are selected entirely via `AI_PROVIDER` and `AI_MODEL_ID`. No specific vendor is architecturally required. Replacing the provider requires only env var changes and a compatible adapter implementation; no domain service code changes.
 - AI Platform failures must be logged but must not interrupt product domain operations.
 
 ---

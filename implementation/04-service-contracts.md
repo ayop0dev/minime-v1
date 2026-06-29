@@ -2,7 +2,7 @@
 
 ## Status
 
-Reconciled. Supersedes `05-service-contracts.md`.
+Canonical. Final.
 
 ---
 
@@ -98,7 +98,19 @@ updateAccountSettings({account_id, settings})
   — mutates Account.settings
 
 updateQrCodeConfiguration({account_id, qr_config})
-  — mutates Account.qr_config
+  — mutates Account.qr_config (color, format fields)
+  — clears Account.qr_config.storage_key to force QR regeneration on next request
+
+generateQrCode({account_id})
+  — internal command; not a direct user-facing HTTP endpoint
+  — generates QR SVG for the account's canonical profile URL via StoragePlatform.upload(assetType: 'qr')
+  — stores returned storage key in Account.qr_config.storage_key
+  — called lazily when GET /api/v1/account/qr-code is requested and storage_key is null
+
+deleteQrAsset({account_id})
+  — internal command; called only by account.deletion.cascade job
+  — if Account.qr_config.storage_key is set: calls StoragePlatform.delete(storage_key)
+  — idempotent: safe to re-run
 
 deleteAccount({account_id})
   — immediate and final; there is no grace period and no cancellation in V1
@@ -123,6 +135,7 @@ getQrCodeConfiguration({account_id})
 ```
 AccountRepository
 ProfileContentRepository   — initialize ProfileContent row during createAccount
+StoragePlatform            — QR code generation and deletion only
 EventBus
 ```
 
@@ -135,7 +148,6 @@ BlockRepository
 ConnectedAccountRepository
 OutLinkRepository
 AnalyticsRepository
-StoragePlatform
 AiPlatform
 ```
 
@@ -173,9 +185,12 @@ account.deleted
 ```
 requestOtp({email})
   — validates email format
-  — creates OtpVerification record (code hashed, expires in 10 min)
-  — sends OTP to email via AuthEmailDelivery adapter (Auth-owned OTP email adapter; OTP delivery only)
   — enforces 60-second resend cooldown
+  — generates 6-digit OTP; hashes it for storage
+  — sends OTP email synchronously via AuthEmailDelivery before persisting OtpVerification record
+  — if AuthEmailDelivery fails: returns delivery error; OtpVerification record is not created
+  — if delivery succeeds: creates OtpVerification record (code_hash stored, plain-text OTP discarded)
+  — plain-text OTP is never stored, never logged, never placed in any job payload
 
 verifyOtp({email, code})
   — validates OTP code against stored hash
@@ -234,7 +249,7 @@ AuthRepository              — OtpVerification, Session, AuthCredential
 AccountRepository           — read account during session creation
 UsernameReservationRepository — read and delete reservation during registration
 AccountService              — createAccount (registration only)
-AuthEmailDelivery           — OTP email delivery (OTP emails only; no user notifications)
+AuthEmailDelivery           — OTP email delivery; synchronous; OTP emails only; no user notifications
 EventBus
 ```
 
@@ -403,8 +418,12 @@ updateConnectedAccount({id, account_id, username})
   — persists updated ConnectedAccount{username, url}
 
 removeConnectedAccount({id, account_id})
-  — Hard Delete; no soft delete, no archive, no trash
   — ownership verified via account_id before deletion
+  — before deletion: finds all social_icons blocks owned by account_id whose content.accounts array references this connected_account_id
+  — before deletion: removes the connected_account_id entry from each affected block's content.accounts array (writes to BlockRepository)
+  — before deletion: calls OutLinksService.archiveOutLink for any active OutLinks associated with (block_id, connected_account_id) for each affected block
+  — then: Hard Delete of ConnectedAccount; no soft delete, no archive, no trash
+  — after deletion: invalidates profile cache
 
 reorderConnectedAccounts({account_id, ordered_ids})
   — updates sort_order for each ConnectedAccount in one transaction
@@ -427,6 +446,9 @@ getConnectedAccount({id, account_id})  — single record with ownership check
 ```
 ConnectedAccountRepository
 SocialAccountsService          — validation and URL generation only
+BlockRepository                — read and update social_icons block content during connected account removal
+OutLinksService                — archive OutLinks for removed social icons
+CacheDataService (Redis)       — cache invalidation after connected account removal
 EventBus
 ```
 
@@ -436,8 +458,6 @@ EventBus
 AuthRepository
 AccountRepository
 ProfileContentRepository
-BlockRepository
-OutLinkRepository
 AnalyticsRepository
 StoragePlatform
 AiPlatform
@@ -484,19 +504,22 @@ addBlock({account_id, type, content, settings, sort_order})
   — validates type against approved BlockType enum
   — validates content and settings against per-type schema
   — enforces max 1 per account for identity blocks (avatar, name, bio)
+  — enforces MAX_BLOCKS_PER_ACCOUNT total active blocks per account; rejects with business error if limit is reached
   — creates Block record
-  — if block creates a Clickable State (button or social_icons with connected accounts): calls OutLinksService.createOutLink
+  — if block type is `button`: calls OutLinksService.createOutLink once (connected_account_id = null)
+  — if block type is `social_icons`: calls OutLinksService.createOutLink once per entry in content.accounts (connected_account_id = that entry's connected_account_id)
 
 updateBlock({id, account_id, content?, settings?})
   — validates ownership via account_id
   — validates updated content/settings against per-type schema
   — mutates Block.content and/or Block.settings
-  — if change creates a new Clickable State (label, url, platform, or social link change): calls OutLinksService.archiveOutLink on the old OutLink, then OutLinksService.createOutLink for the new state
+  — for `button` blocks: if label or url changes, archives old OutLink and creates new OutLink
+  — for `social_icons` blocks: compares old and new content.accounts; archives OutLinks for removed entries; creates OutLinks for added entries; entries with unchanged connected_account_id retain their OutLink
 
 deleteBlock({id, account_id})
   — validates ownership via account_id
   — soft deletes Block (sets deleted_at)
-  — if block had an active OutLink (button or social_icons): calls OutLinksService.archiveOutLink
+  — archives all active OutLinks for the block (one for button; one per icon for social_icons)
 
 reorderBlocks({account_id, ordered_ids})
   — validates all block IDs belong to account_id
@@ -504,7 +527,7 @@ reorderBlocks({account_id, ordered_ids})
 
 updateAppearance({account_id, selected_theme_id?, customizations?})
   — updates ProfileContent.appearance_config
-  — validates selected_theme_id exists in theme catalog
+  — validates selected_theme_id against the theme catalog at `packages/config/themes.ts`; rejects unknown theme IDs
 
 uploadImage({account_id, file})
   — validates file MIME type and file size per 07-validation-rules.md — ImageAsset constants
@@ -620,6 +643,7 @@ BlockRepository             — read-only
 ConnectedAccountRepository  — read-only
 OutLinkRepository           — read-only; resolves active OutLink public_ids for tracked clickable blocks
 ImageAssetRepository        — read-only; resolves ImageAsset storage keys to public URLs for image blocks
+StoragePlatform             — read-only; buildPublicUrl only; RenderingService never uploads or deletes
 CacheDataService (Redis)
 ```
 
@@ -641,8 +665,11 @@ None.
 - RenderingService must be stateless.
 - RenderingService must never write to any repository.
 - RenderingService reads directly from repositories for performance. It does not go through other domain services.
-- For `button` blocks and `social_icons` blocks, RenderingService must look up the active OutLink (status = 'active' or 'created') for each block by `block_id` via OutLinkRepository. The public render payload must use `/out/{public_id}` for each tracked clickable link. Raw destination URLs from block content must not appear in public render payloads for tracked links.
-- If no active OutLink exists for a block (e.g., archived but block not yet soft-deleted), the link must be omitted or rendered as disabled. It must not fall back to the raw URL from block content.
+- For `button` blocks: look up one active OutLink by `(block_id, connected_account_id = null)` via OutLinkRepository. Render as `/out/{public_id}`.
+- For `social_icons` blocks: look up one active OutLink per icon by `(block_id, connected_account_id)` via OutLinkRepository. Each icon in the rendered output uses its own `/out/{public_id}`. Icons with no active OutLink are omitted from the rendered output.
+- Raw destination URLs from block content must not appear in public render payloads for tracked links.
+- If no active OutLink exists for a button block or for a specific social icon, that link is omitted. It must not fall back to the raw URL.
+- RenderingService uses the same theme catalog at `packages/config/themes.ts` to resolve theme values from `selected_theme_id`.
 - For `image` blocks, RenderingService must look up the `ImageAsset` by `content.image_id` via ImageAssetRepository and call `StoragePlatform.buildPublicUrl(storage_key)` to produce the public image URL. The storage key must not appear in the rendered payload. If the referenced ImageAsset does not exist, the block must be omitted or rendered as a placeholder.
 - Cache TTL and cache keys: See `09-caching-strategy.md`.
 - There is no publication state. Rendering always reflects the current persisted state of profile content.
@@ -660,15 +687,16 @@ None.
 ### Commands
 
 ```
-createOutLink({account_id, block_id, block_type, destination_url, label_snapshot, source_snapshot})
+createOutLink({account_id, block_id, block_type, destination_url, label_snapshot, source_snapshot, connected_account_id})
   — internal operation; called by ProfileService, not by controllers
-  — triggered when a new Clickable State is created (new button block, new social link)
+  — connected_account_id: null for button blocks; ConnectedAccount ID for social_icons blocks
+  — triggered when a new Clickable State is created (new button block, or new social icon entry)
   — generates unique URL-safe public_id per `07-validation-rules.md` — Out Links constants
   — creates OutLink with status 'active'
 
 archiveOutLink({id, account_id})
-  — internal operation; called by ProfileService, not by controllers
-  — triggered when a Clickable State changes (label, url, platform change) or block is deleted
+  — internal operation; called by ProfileService or ConnectedAccountsService, not by controllers
+  — triggered when a Clickable State changes or is removed (label/url/platform change, social icon removed, block deleted)
   — validates ownership via account_id
   — sets OutLink.status = 'archived'
   — sets OutLink.archived_at = NOW()
@@ -683,11 +711,16 @@ purgeArchivedOutLinks()
   — background job only
   — hard deletes records where status = 'archived' AND archived_at < NOW() - 90 days
 
+getAccountOutLinkIds({account_id})
+  — internal read-only query; called only by account.deletion.cascade job before OutLink deletion
+  — returns all OutLink IDs (any status) owned by account_id
+  — used to collect out_link_ids before deletion so analytics cleanup does not depend on delete return values
+  — idempotent: safe to call multiple times; returns empty list if OutLinks already deleted
+
 deleteAccountOutLinks({account_id})
   — internal operation; called only by account.deletion.cascade job, not by controllers or HTTP requests
   — hard-deletes all OutLink records for the account regardless of status
-  — returns list of deleted out_link_ids for downstream analytics cleanup in the same cascade job
-  — idempotent: safe to re-run if cascade job is retried
+  — idempotent: safe to re-run
 ```
 
 ### Queries
@@ -760,7 +793,8 @@ deleteAccountAnalytics({account_id, out_link_ids})
   — internal operation; called only by account.deletion.cascade job, not by controllers or HTTP requests
   — hard-deletes AnalyticsEvent records where event_type = 'profile_view' AND account_id = account_id
   — hard-deletes AnalyticsEvent records where event_type = 'link_click' AND out_link_id IN (out_link_ids)
-  — out_link_ids are collected by the cascade job from OutLinksService.deleteAccountOutLinks before OutLinks are deleted
+  — out_link_ids are collected by the cascade job via OutLinksService.getAccountOutLinkIds BEFORE OutLinks are deleted; analytics runs before OutLink deletion to ensure idempotency on retry
+  — accepts empty out_link_ids list gracefully (only profile_view deletion runs)
   — idempotent: safe to re-run
 ```
 
@@ -819,10 +853,10 @@ analytics.retention.completed
 | Platform Service | Allowed Usage |
 |---|---|
 | Data (PostgreSQL via Prisma) | Accessed through repositories only; never from controllers or services directly |
-| Storage (Object Storage) | File upload and key storage; ProfileService (avatar upload and deletion) |
+| Storage (Object Storage) | File upload, key storage, and URL construction; ProfileService (avatar and image asset upload/deletion); RenderingService (buildPublicUrl only — read-only) |
 | Events (NestJS EventEmitter) | In-process event notification after business persistence |
 | AI | Optional analysis; AI responses require user confirmation before any business mutation |
-| AuthEmailDelivery | Auth-domain-owned OTP email adapter; used only by AuthService.requestOtp; must not be used for user notifications, campaigns, notification history, push notifications, or any purpose other than OTP delivery |
+| AuthEmailDelivery | Auth-domain-owned OTP email adapter; V1 implementation default backed by Resend; used only by AuthService.requestOtp for synchronous OTP delivery; must not be used for user notifications, campaigns, notification history, push notifications, or any purpose other than OTP delivery; if delivery fails, requestOtp returns an error and no OtpVerification record is created |
 
 **NestJS EventEmitter characteristics:**
 
@@ -864,6 +898,7 @@ Reverse dependencies are prohibited.
 | UsernameReservationRepository | Username |
 | ProfileContentRepository | Profile |
 | BlockRepository | Profile |
+| ImageAssetRepository | Profile |
 | ConnectedAccountRepository | Connected Accounts |
 | OutLinkRepository | Out Links |
 | AnalyticsEventRepository | Analytics |

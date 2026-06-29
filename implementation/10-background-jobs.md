@@ -2,7 +2,7 @@
 
 ## Status
 
-Reconciled. Supersedes `11-background-jobs.md`.
+Canonical. Final.
 
 ---
 
@@ -92,31 +92,7 @@ Every job must define a maximum execution time. Jobs exceeding the configured ti
 
 The following jobs are the only V1-approved background jobs. Each is traceable to the frozen architecture.
 
----
-
-### 1. OTP Email Delivery
-
-**Queue:** `auth.otp.send`
-
-**Owner:** Authentication domain
-
-**Trigger:** After `OtpVerification` record is created and persisted.
-
-**Payload:**
-
-```json
-{ "email": "string", "otp_code": "string" }
-```
-
-**Behavior:**
-
-- Sends the OTP code to the specified email address via the AuthEmailDelivery adapter (Auth-owned OTP email adapter; OTP delivery only).
-- The OTP code is transmitted only within the job payload and the email; it must not be logged.
-- The OTP code must be discarded after delivery.
-
-**Retry:** Yes. Email delivery failure should be retried. Idempotent: sending the same OTP code multiple times has no additional business effect.
-
-**Notes:** The plain-text OTP value in this payload is a transient delivery artifact. `OtpVerification.code_hash` (the stored record) contains only the hash. After the email is sent, the plain-text code has no further use.
+**Note on OTP email delivery:** OTP email delivery is NOT a background job. It executes synchronously within `AuthService.requestOtp` via the `AuthEmailDelivery` adapter (V1 implementation default: Resend) before the plain-text OTP is discarded. No BullMQ job is created for OTP delivery. Plain-text OTP values must never appear in any job payload or in Redis. See `08-security-model.md` — OTP Security.
 
 ---
 
@@ -331,19 +307,25 @@ Executes cross-domain cascade cleanup for a deleted account. Before executing, v
 Cascade steps in order:
 
 1. `AuthService.revokeAllSessions({ account_id })` — catches any sessions not revoked by the synchronous EventEmitter handler
-2. `OutLinksService.deleteAccountOutLinks({ account_id })` — hard-deletes all OutLinks regardless of status; returns `out_link_ids`
-3. `AnalyticsService.deleteAccountAnalytics({ account_id, out_link_ids })` — hard-deletes profile_view events for account and link_click events for the collected out_link_ids
-4. `ProfileService.deleteAccountData({ account_id })` — hard-deletes all Blocks; hard-deletes all ImageAssets (calls StoragePlatform.delete(storage_key) for each); hard-deletes ProfileContent (includes appearance_config JSONB); calls StoragePlatform.delete(avatar_storage_key) if set
-5. `ConnectedAccountsService.deleteAccountConnectedAccounts({ account_id })` — hard-deletes all ConnectedAccount records
+2. `OutLinksService.getAccountOutLinkIds({ account_id })` — read-only; collects all OutLink IDs (any status) BEFORE any deletion; stored in job working memory for step 3
+3. `AnalyticsService.deleteAccountAnalytics({ account_id, out_link_ids })` — hard-deletes profile_view events for account_id and link_click events for the out_link_ids collected in step 2; runs BEFORE OutLink deletion to guarantee idempotency
+4. `OutLinksService.deleteAccountOutLinks({ account_id })` — hard-deletes all OutLink records regardless of status
+5. `ProfileService.deleteAccountData({ account_id })` — hard-deletes all Blocks; hard-deletes all ImageAssets (calls StoragePlatform.delete(storage_key) for each); hard-deletes ProfileContent (includes appearance_config JSONB); calls StoragePlatform.delete(avatar_storage_key) if set
+6. `ConnectedAccountsService.deleteAccountConnectedAccounts({ account_id })` — hard-deletes all ConnectedAccount records
+7. `AccountService.deleteQrAsset({ account_id })` — if Account.qr_config.storage_key is set, calls StoragePlatform.delete(storage_key) to remove the QR binary; clears storage_key from qr_config
 
 Notes:
-- QR config is a JSONB field on Account — retained with the Account record; no separate deletion needed.
-- AppearanceState is not a separate entity; appearance_config is a JSONB field on ProfileContent, deleted in step 4.
+- AppearanceState is not a separate entity; appearance_config is a JSONB field on ProfileContent, deleted in step 5.
 - There is no AI decisions entity in V1.
 - StoragePlatform.delete is idempotent — deleting a non-existent key does not throw.
 - ConnectedAccount deletion uses Hard Delete (no soft delete, no deleted_at).
+- Account record is retained permanently with qr_config metadata; only the QR binary is removed from Object Storage.
 
-**Partial failure behavior:** If any step fails, the job fails and retries from the beginning. All steps are idempotent — re-running a completed step produces no adverse effect. Account.status = 'deleted' remains set throughout all retries.
+**Idempotency on retry:** If any step fails and the job retries:
+- Step 2 re-reads OutLink IDs. If OutLinks were already deleted (step 4 completed in a prior attempt), step 2 returns an empty list. Step 3 will only clean up profile_view events (link_click events were already cleaned up in the prior attempt). Steps 3 and 4 are both idempotent no-ops if their target records no longer exist.
+- All other steps are idempotent: hard-deleting already-deleted records produces no error; StoragePlatform.delete on an already-deleted key does not throw.
+
+**Partial failure behavior:** If any step fails, the job fails and retries from the beginning. Account.status = 'deleted' remains set throughout all retries.
 
 **Retry:** Yes. Every step must be idempotent.
 
@@ -362,6 +344,8 @@ Account deletion executes in two phases:
 2. All active sessions revoked — EventEmitter handler calls AuthService.revokeAllSessions
 
 **Asynchronous (account.deletion.cascade BullMQ job, Job 8):**
-3–7. Cross-domain cascade as defined in Job 8 above (sessions cleanup, OutLinks, Analytics, Profile data + ImageAssets, ConnectedAccounts).
+3–9. Cross-domain cascade as defined in Job 8 above: sessions cleanup → collect out_link_ids → Analytics deletion → OutLinks deletion → Profile data + ImageAssets → ConnectedAccounts → QR storage asset deletion.
+
+**Cascade idempotency guarantee:** out_link_ids are collected from the database in a read-only step (step 2 of the cascade) before any deletion occurs. Analytics runs before OutLinks are deleted. On retry, if OutLinks are already deleted, the read returns empty and analytics is a safe no-op (already completed).
 
 No "account deletion cancellation" job exists. Deletion is final in V1.

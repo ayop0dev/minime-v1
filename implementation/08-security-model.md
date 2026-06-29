@@ -2,7 +2,7 @@
 
 ## Status
 
-Reconciled. Supersedes `09-security-model.md`.
+Canonical. Final.
 
 ---
 
@@ -88,9 +88,10 @@ Authentication must execute in the backend. Authentication must complete before 
 - The attempt counter (`OtpVerification.attempts`) must be incremented on every failed verification.
 - When `attempts` reaches 5, the OtpVerification record must be treated as invalid (same as expired).
 - OTP codes must never appear in logs, events, error responses, or email subjects.
+- OTP codes must never appear in BullMQ job payloads. OTP email delivery executes synchronously within AuthService.requestOtp before the plain-text OTP is discarded.
 - The OTP response must not reveal whether an Account exists for the given email.
 
-**Resend cooldown enforcement:**
+**OTP resend cooldown enforcement:**
 
 Before creating a new OtpVerification record, the system must check whether an existing record for the same identifier was created within the last 60 seconds. If so, the new request must be rejected with `429 Too Many Requests`.
 
@@ -194,6 +195,9 @@ Secrets include:
 - Redis credentials
 - Object Storage credentials
 - Google OAuth client credentials
+- `EMAIL_PROVIDER_API_KEY` — email provider API key for OTP email delivery
+- `EMAIL_FROM_ADDRESS` — sender address for OTP emails
+- `AI_API_KEY` — AI provider API key
 
 Secrets must never appear in logs, events, responses, or job payloads.
 
@@ -207,6 +211,8 @@ Redis must not store:
 - Access tokens
 - Refresh tokens
 - Canonical business data
+
+BullMQ job payloads (which transit Redis) must not contain OTP codes in any form. OTP delivery is synchronous, not queued.
 
 Redis stores only:
 
@@ -343,6 +349,10 @@ Background jobs must not:
 ## AI Security
 
 AI responses must be treated as untrusted input. AI responses must be validated before use. User confirmation is required before applying AI-generated changes. AI responses must never modify business state automatically.
+
+AI Platform calls must be rate-limited per account. Rate limits are configured via `AI_MAX_REQUESTS_PER_MINUTE` environment variable. Exceeding the rate limit must return an empty suggestions array, never throw to the caller.
+
+AI API keys must never appear in logs, events, or responses.
 
 ---
 

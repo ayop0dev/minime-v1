@@ -2,7 +2,7 @@
 
 ## Status
 
-Reconciled. Supersedes `07-event-contracts.md`.
+Canonical. Final.
 
 ---
 

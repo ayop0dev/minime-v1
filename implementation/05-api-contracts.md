@@ -2,7 +2,7 @@
 
 ## Status
 
-Reconciled. Supersedes `06-api-contracts.md` and `14-` through `21-` domain API files.
+Canonical. Final.
 
 ---
 
@@ -998,6 +998,7 @@ Add a block.
 - Validate `type` against approved BlockType enum.
 - Validate `content` and `settings` against per-type schema (from 03-canonical-data-model.md).
 - Enforce identity block instance limit: max 1 per account for avatar, name, bio types.
+- Enforce MAX_BLOCKS_PER_ACCOUNT total active blocks per account. Reject with `409` if limit is reached.
 - Invalidate rendering cache after persistence.
 - Publish `profile.block.added` after persistence.
 - Field names: `type` (not `blockType`), `content` (not `data`), `sort_order` (not `displayOrder`).
@@ -1509,7 +1510,8 @@ The public profile page. Rendered server-side. Outside the `/api/v1/` base path.
 - Resolve username to an active Account.
 - Return 404 for deleted or suspended accounts.
 - RenderingService assembles profile from ProfileContent, Blocks, ConnectedAccounts, OutLinks, ImageAssets (all read-only).
-- For `button` blocks and `social_icons` blocks, tracked links in the rendered output use `/out/{public_id}` format. Raw destination URLs must not appear in public render payloads for tracked links.
+- For `button` blocks, the tracked link uses `/out/{public_id}` for the single OutLink.
+- For `social_icons` blocks, each social icon renders with its own `/out/{public_id}` tracked link. Raw destination URLs must not appear in public render payloads for tracked links. Icons with no active OutLink are omitted.
 - Response is cached per `09-caching-strategy.md`.
 - No publishing state. The rendered output always reflects current persisted state.
 - There is no preview path. The authenticated dashboard shows live data.

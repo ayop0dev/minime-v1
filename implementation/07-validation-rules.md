@@ -2,7 +2,7 @@
 
 ## Status
 
-Reconciled. Supersedes `08-validation-rules.md`.
+Canonical. Final.
 
 ---
 
@@ -178,7 +178,7 @@ The following constants are derived directly from frozen architecture specificat
 | Format | Exactly 6 numeric digits |
 | Lifetime | 10 minutes from creation |
 | Maximum verification attempts | 5 |
-| Resend cooldown | 60 seconds between requests for the same identifier |
+| OTP resend cooldown | 60 seconds between requests for the same identifier |
 | Storage | Hash only. Plain-text OTP value must never be stored. |
 
 **OTP schema:**
@@ -243,6 +243,7 @@ Uniqueness check must consult both `Account.username` (permanent) and active `Us
 | `contact.phone` | string, nullable |
 | `contact.whatsapp` | string, nullable |
 | `contact.location` | string, nullable |
+| `appearance_config.selected_theme_id` | string, nullable; if non-null must be a valid ID from the theme catalog at `packages/config/themes.ts` |
 
 ---
 
@@ -296,6 +297,14 @@ sort_order: integer, >= 0 (required)
 **Identity block instance limit:**
 
 The system must reject creation of a second `avatar`, `name`, or `bio` block for an account that already has one of that type.
+
+**Total block limit (MAX_BLOCKS_PER_ACCOUNT):**
+
+The system must reject block creation when total active (non-soft-deleted) block count for the account is at or above MAX_BLOCKS_PER_ACCOUNT (canonical definition and implementation default in `03-canonical-data-model.md`). This is a V1 operational safety limit. Do not introduce plan tiers.
+
+**social_icons connected_account_id validation:**
+
+Each `connected_account_id` in a social_icons block's `content.accounts` array must reference an existing `ConnectedAccount` owned by the same account (business validation layer). Validation must reject additions of unknown or cross-account references. When a connected_account_id is removed from block content via ConnectedAccountsService.removeConnectedAccount, no dangling reference may remain.
 
 **Block type enum:** See `03-canonical-data-model.md` — BlockType enum (9 values).
 

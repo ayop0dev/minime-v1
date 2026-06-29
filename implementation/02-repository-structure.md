@@ -188,6 +188,8 @@ Allowed:
 * environment variable schema definitions
 * shared constants
 * app-level config types
+* `themes.ts` — immutable theme catalog; exports a typed list of V1 theme IDs and their definitions; used by ProfileService (validation) and RenderingService (theme resolution)
+* `ai-prompts.ts` — AI prompt templates; application code, not database entities; not user-editable
 
 Not allowed:
 

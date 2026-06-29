@@ -2,7 +2,7 @@
 
 ## Status
 
-Reconciled. Supersedes `10-caching-strategy.md`.
+Canonical. Final.
 
 ---
 

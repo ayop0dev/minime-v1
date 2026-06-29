@@ -100,19 +100,20 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 **Deliverables:**
 
 - `AuthService` implemented: `requestOtp`, `verifyOtp`, `googleSignIn`, `refreshSession`, `logout`, `logoutAll`
-- Email OTP flow: OTP generation, hash storage, attempt tracking, resend cooldown enforcement
+- Email OTP flow: OTP generation, synchronous email delivery via AuthEmailDelivery, hash storage, attempt tracking, OTP resend cooldown enforcement
+- `AuthEmailDelivery` adapter implemented; V1 default uses Resend SDK; configured via `EMAIL_PROVIDER_API_KEY` and `EMAIL_FROM_ADDRESS` environment variables
+- OTP delivery is synchronous: email sent before OtpVerification record is created; if delivery fails, no record is created and an error is returned
 - Google Sign-In flow: ID token backend verification against Google public keys
 - JWT access token issuance (short-lived, not stored)
 - Refresh token rotation (hash stored in Session, plain text discarded after issuance)
 - `AuthRepository` implemented: OtpVerification CRUD, Session CRUD, AuthCredential CRUD
 - API endpoints implemented: `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/google`, `POST /auth/session`, `POST /auth/logout`, `POST /auth/logout-all`
-- BullMQ queue infrastructure: `auth.otp.send` job (OTP email delivery)
 - Scheduled jobs: `auth.otp.cleanup`, `auth.session.cleanup`
 - Auth guard (JWT validation middleware)
 - Events emitted: `auth.otp.requested`, `auth.otp.verified`, `auth.session.refreshed`
 
 **Security requirements (per `08-security-model.md`):**
-- OTP codes never stored plain-text, never logged, never in responses
+- OTP codes never stored plain-text, never logged, never in responses, never in BullMQ payloads
 - Refresh tokens never stored plain-text
 - After 5 failed attempts, OtpVerification treated as invalid
 - Google tokens never stored
@@ -127,8 +128,10 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 
 **Deliverables:**
 
-- `AccountService` implemented: `createAccount`, `deleteAccount`, `getAccount`
+- `AccountService` implemented: `createAccount`, `deleteAccount`, `getAccount`, `generateQrCode`, `deleteQrAsset`
 - `AccountService.deleteAccount` implemented: sets Account.status = 'deleted', publishes `account.deleted` event; EventEmitter handlers perform synchronous session revocation and enqueue `account.deletion.cascade` BullMQ job
+- `AccountService.generateQrCode` implemented: lazy QR generation via StoragePlatform.upload(assetType: 'qr'); storage key persisted in Account.qr_config.storage_key; called by GET /account/qr-code when storage_key is null
+- `AccountService.updateQrCodeConfiguration` clears storage_key when config changes, forcing regeneration on next request
 - `account.deletion.cascade` job scaffolded in this phase; fully implemented with all domain service calls in Phase 6 (after OutLinksService, AnalyticsService, ProfileService, and ConnectedAccountsService deletion commands are available)
 - `UsernameService` implemented: `checkAvailability`, `reserveUsername`, `expireReservation`
 - `UsernameReservationRepository` implemented
@@ -154,6 +157,9 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 - `ProfileService` implemented: `getProfileContent`, `updateProfileContent`, `uploadAvatar`, `uploadImage`, `deleteImage`, `addBlock`, `updateBlock`, `reorderBlocks`, `removeBlock`
 - `ProfileContentRepository`, `BlockRepository`, `ImageAssetRepository` implemented
 - Identity block instance limit enforced (max 1 per account for `avatar`, `name`, `bio`)
+- MAX_BLOCKS_PER_ACCOUNT enforced: block creation rejected when total active block count reaches limit (canonical definition and default in `03-canonical-data-model.md`)
+- Theme catalog implemented at `packages/config/themes.ts`; `updateAppearance` validates `selected_theme_id` against this catalog; `RenderingService` resolves theme values from the same catalog
+- `ConnectedAccountsService.removeConnectedAccount` cleans up social_icons block references before hard-deleting: removes connected_account_id from all affected block content arrays, archives associated OutLinks
 - Avatar upload: MIME validation → WebP conversion → `StoragePlatform.upload` → key stored in `ProfileContent.avatar_storage_key`
 - Image block upload: MIME validation → WebP conversion → `StoragePlatform.upload` → `ImageAsset` record created → `image_id` returned to caller
 - `image` block content validated: `image_id` must reference an `ImageAsset` owned by the same account
@@ -162,7 +168,7 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 - `ConnectedAccountsService` implemented: `addConnectedAccount`, `updateConnectedAccount`, `removeConnectedAccount`, `reorderConnectedAccounts`
 - `ConnectedAccountRepository` implemented (Hard Delete)
 - API endpoints implemented: `GET /profile`, `PATCH /profile`, `POST /profile/avatar`, `POST /profile/images`, `DELETE /profile/images/:imageId`, `GET /profile/blocks`, `POST /profile/blocks`, `PATCH /profile/blocks/:id`, `PATCH /profile/blocks/reorder`, `DELETE /profile/blocks/:id`, `GET /account/connected-accounts`, `POST /account/connected-accounts`, `PATCH /account/connected-accounts/:id`, `DELETE /account/connected-accounts/:id`, `PATCH /account/connected-accounts/reorder`
-- Events emitted: `profile.updated`, `profile.image.uploaded`, `profile.image.deleted`, `block.created`, `block.updated`, `block.deleted`, `connected-account.created`, `connected-account.deleted`
+- Events emitted: `profile.updated`, `profile.image.uploaded`, `profile.image.deleted`, `profile.block.added`, `profile.block.updated`, `profile.block.deleted`, `connected-account.added`, `connected-account.removed`
 
 **OutLink creation side-effect:** When a `button` or `social_icons` block is created, `ProfileService` calls `OutLinksService.createOutLink` internally. See Phase 6.
 
@@ -184,14 +190,16 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 - Scheduled jobs: `out-links.purge` (archived OutLinks hard-deleted after 90 days)
 - `AnalyticsService` implemented: `recordProfileView`, `recordLinkClick`, `getProfileViewSummary`, `getLinkClickSummary`
 - `AnalyticsEventRepository` implemented (append-only)
-- API endpoints implemented: `POST /analytics/events`, `GET /analytics/summary`, `GET /analytics/profile-views`, `GET /analytics/link-clicks`
+- API endpoints implemented: `GET /analytics/summary`, `GET /analytics/profile`, `GET /analytics/out-links/:id`
 - Scheduled job: `analytics.retention` (purge old AnalyticsEvent records)
-- `account.deletion.cascade` BullMQ job fully implemented: calls OutLinksService.deleteAccountOutLinks, AnalyticsService.deleteAccountAnalytics, ProfileService.deleteAccountData, ConnectedAccountsService.deleteAccountConnectedAccounts in order; idempotent per step; see `10-background-jobs.md` — Job 8
-- Events emitted: `out-link.created`, `out-link.archived`, `out-link.clicked`, `analytics.event.recorded`
+- `account.deletion.cascade` BullMQ job fully implemented: (1) OutLinksService.getAccountOutLinkIds (read-only), (2) AnalyticsService.deleteAccountAnalytics, (3) OutLinksService.deleteAccountOutLinks, (4) ProfileService.deleteAccountData, (5) ConnectedAccountsService.deleteAccountConnectedAccounts, (6) AccountService.deleteQrAsset; all steps idempotent; see `10-background-jobs.md` — Job 8
+- Events emitted: `out-link.created`, `out-link.archived`, `out-link.clicked`
 
-**OutLink creation model:** OutLinks are system-created, not user-facing. `ProfileService.addBlock` calls `OutLinksService.createOutLink` after block persistence for `button` and `social_icons` block types.
+**OutLink creation model:** OutLinks are system-created, not user-facing. `ProfileService.addBlock` calls `OutLinksService.createOutLink` after block persistence: one OutLink for `button` blocks; one OutLink per entry in `content.accounts` for `social_icons` blocks (each with its own `connected_account_id`). Each social icon renders with its own `/out/{public_id}` tracked link.
 
-**Complete when:** OutLink redirect flow works end-to-end; click recording is non-blocking; analytics events accumulate correctly.
+**Cascade idempotency:** `account.deletion.cascade` Job 8 collects out_link_ids via `OutLinksService.getAccountOutLinkIds` (read-only) BEFORE any deletion. Analytics deletion runs before OutLink deletion. On retry, if OutLinks are already deleted, the read returns empty and analytics is a safe no-op. All cascade steps are idempotent; QR storage asset deletion is the final cascade step.
+
+**Complete when:** OutLink redirect flow works end-to-end; click recording is non-blocking; analytics events accumulate correctly; per-icon OutLink tracking works for social_icons blocks; account deletion cascade is fully idempotent.
 
 ---
 
@@ -223,11 +231,15 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 **Deliverables:**
 
 - `AiPlatform` service implemented: `suggestUsernames`, `suggestSocialSetup`, `suggestProfileImprovements`, `generateOnboardingGuidance`
+- Provider configured via `AI_PROVIDER`, `AI_MODEL_ID`, `AI_API_KEY` environment variables; implementation defaults in `.env.example`
+- Prompt templates implemented in `packages/config/ai-prompts.ts`
+- Rate limiting enforced per account (`AI_MAX_REQUESTS_PER_MINUTE`); timeout enforced (`AI_TIMEOUT_MS`)
+- If `AI_API_KEY` is absent: all methods return empty arrays silently
 - AI suggestions surfaced in the relevant API flows (username selection during registration, social setup, profile onboarding)
 - AI failure handled gracefully: returns empty array, never throws to caller
 - No automatic AI mutations: all AI suggestions require explicit user confirmation before domain service mutation executes
 
-**Complete when:** AI suggestions surface in registration and onboarding flows; AI failure does not interrupt any product domain operation.
+**Complete when:** AI suggestions surface in registration and onboarding flows; AI failure does not interrupt any product domain operation; rate limiting and timeout are enforced.
 
 ---
 

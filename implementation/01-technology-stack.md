@@ -616,11 +616,12 @@ Execute asynchronous background work.
 
 BullMQ must be used for:
 
-* email delivery
 * media processing
 * scheduled jobs
 * retryable tasks
 * long-running operations
+
+Note: OTP email delivery is synchronous within AuthService (not a BullMQ job). See `10-background-jobs.md`.
 
 Background jobs must execute outside the HTTP request lifecycle.
 
@@ -980,33 +981,125 @@ Approved.
 
 ---
 
+# Engineering Decision
+
+## Email Provider
+
+### Decision
+
+Configurable email delivery adapter. V1 implementation default: Resend.
+
+### Purpose
+
+Deliver OTP emails from the AuthEmailDelivery adapter.
+
+### Implementation Rules
+
+* The architecture owns `AuthEmailDelivery`. The provider behind it is implementation-configurable.
+* V1 implementation default is Resend (`resend` npm package). Replacing Resend requires only an adapter swap and env var update — no architectural change.
+* OTP email delivery executes synchronously within `AuthService.requestOtp`. There is no BullMQ job for email delivery.
+* Provider API key is configured via `EMAIL_PROVIDER_API_KEY` environment variable.
+* Sender address is configured via `EMAIL_FROM_ADDRESS` environment variable.
+* Failure behavior: if the provider returns an error, `requestOtp` returns a delivery error and does not create an OtpVerification record.
+* AuthEmailDelivery is the only component that calls the email provider. No other service may call the email provider directly.
+
+### Do
+
+* Send OTP emails synchronously.
+* Validate delivery success before creating OtpVerification record.
+* Keep the provider behind AuthEmailDelivery so it can be replaced without architectural change.
+
+### Don't
+
+* Do not create BullMQ jobs for OTP email delivery.
+* Do not store the provider API key anywhere other than environment variables.
+* Do not use the email provider for any purpose other than OTP delivery.
+
+### Decision Authority
+
+Minime V1 Canonical Engineering Decision.
+
+### Status
+
+Approved.
+
+---
+
+# Engineering Decision
+
+## AI Provider
+
+### Decision
+
+Configurable AI provider via environment variables. V1 implementation defaults are defined in `.env.example`.
+
+### Purpose
+
+Generate username suggestions, social setup suggestions, profile improvement suggestions, and onboarding guidance.
+
+### Implementation Rules
+
+* Provider is selected via `AI_PROVIDER` environment variable. No specific vendor is architecturally required.
+* Model is configured via `AI_MODEL_ID` environment variable. No specific model is architecturally required.
+* API key is configured via `AI_API_KEY` environment variable.
+* If `AI_API_KEY` is absent: AI suggestions are disabled; all AI methods return empty arrays.
+* AI calls must time out after `AI_TIMEOUT_MS` milliseconds (default: 10000).
+* AI calls must be rate-limited to `AI_MAX_REQUESTS_PER_MINUTE` per account (default: 10).
+* Prompt templates live in `packages/config/ai-prompts.ts` — not in the database.
+* Replacing the provider requires only a compatible adapter implementation and env var update. No domain service code changes.
+
+### Do
+
+* Return empty arrays on any AI failure; never throw to callers.
+* Configure everything through environment variables.
+* Keep prompt templates in application code.
+
+### Don't
+
+* Do not store AI responses in the database.
+* Do not apply AI suggestions without explicit user confirmation.
+* Do not block product domain operations on AI failure.
+* Do not introduce multi-provider routing in V1.
+
+### Decision Authority
+
+Minime V1 Canonical Engineering Decision.
+
+### Status
+
+Approved.
+
+---
+
 # Final Technology Stack
 
-| Category        | Technology            |
-| --------------- | --------------------- |
-| Runtime         | Node.js LTS           |
-| Language        | TypeScript            |
-| Package Manager | pnpm                  |
-| Monorepo        | Turborepo             |
-| Frontend        | Next.js               |
-| Backend         | NestJS                |
-| HTTP Engine     | Fastify Adapter       |
-| API             | REST                  |
-| Database        | PostgreSQL            |
-| ORM             | Prisma                |
-| Cache           | Redis                 |
-| Object Storage  | S3 Compatible         |
-| Authentication  | JWT + Refresh Tokens  |
-| Validation      | Zod                   |
-| Background Jobs | BullMQ                |
-| Event Bus       | NestJS EventEmitter   |
-| Logging         | Pino                  |
-| Testing         | Vitest + Playwright   |
-| Reverse Proxy   | Nginx                 |
-| Deployment      | Docker                |
-| CI              | GitHub Actions        |
-| Configuration   | Environment Variables |
-| Versioning      | Semantic Versioning   |
+| Category        | Technology                    |
+| --------------- | ----------------------------- |
+| Runtime         | Node.js LTS                   |
+| Language        | TypeScript                    |
+| Package Manager | pnpm                          |
+| Monorepo        | Turborepo                     |
+| Frontend        | Next.js                       |
+| Backend         | NestJS                        |
+| HTTP Engine     | Fastify Adapter               |
+| API             | REST                          |
+| Database        | PostgreSQL                    |
+| ORM             | Prisma                        |
+| Cache           | Redis                         |
+| Object Storage  | S3 Compatible                 |
+| Authentication  | JWT + Refresh Tokens          |
+| Validation      | Zod                           |
+| Background Jobs | BullMQ                        |
+| Event Bus       | NestJS EventEmitter           |
+| Email Provider  | Configurable adapter; V1 default: Resend (OTP delivery only) |
+| AI Provider     | Configurable via env vars; V1 defaults in `.env.example`     |
+| Logging         | Pino                          |
+| Testing         | Vitest + Playwright           |
+| Reverse Proxy   | Nginx                         |
+| Deployment      | Docker                        |
+| CI              | GitHub Actions                |
+| Configuration   | Environment Variables         |
+| Versioning      | Semantic Versioning           |
 
 ---
 
