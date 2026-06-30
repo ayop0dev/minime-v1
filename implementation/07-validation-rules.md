@@ -171,41 +171,22 @@ The following constants are derived directly from frozen architecture specificat
 
 ### Authentication
 
-**OTP (from `authentication.policy.v1.md`):**
+**Supported authentication methods:** Google Sign-In and Apple Sign-In only. Email OTP, Phone, SMS, WhatsApp, Facebook, X, and LinkedIn authentication are not supported in V1.
 
-| Rule | Value |
-|---|---|
-| Format | Exactly 6 numeric digits |
-| Lifetime | 10 minutes from creation |
-| Maximum verification attempts | 5 |
-| OTP resend cooldown | 60 seconds between requests for the same identifier |
-| Storage | Hash only. Plain-text OTP value must never be stored. |
-
-**OTP schema:**
+**Provider assertion schema (POST /auth/provider and POST /auth/register/provider):**
 
 ```
-code: string, exactly 6 characters, digits [0-9] only
+provider: AuthProvider enum value (google | apple), required
+provider_assertion: string, non-empty, required
 ```
 
-**Email schema:**
+`provider_assertion` carries the ID token issued by the provider (e.g. Google ID token or Apple ID token). The backend verifies it against the provider's public keys before use.
+
+**Provider assertion schema (registration handoff — short-lived, single-use):**
 
 ```
-email: string, valid email format (RFC 5321), max 254 chars, normalized to lowercase
+provider_assertion: string, non-empty, single-use
 ```
-
-**Google ID token schema:**
-
-```
-id_token: string, non-empty
-```
-
-**Verification token schema:**
-
-```
-verification_token: string, non-empty, single-use
-```
-
-**Supported authentication methods:** Email OTP and Google Sign-In only. Phone, SMS, WhatsApp, Apple Sign-In, Facebook, X, and LinkedIn authentication are not supported in V1.
 
 ---
 
@@ -244,6 +225,20 @@ Uniqueness check must consult both `Account.username` (permanent) and active `Us
 | `contact.whatsapp` | string, nullable |
 | `contact.location` | string, nullable |
 | `appearance_config.selected_theme_id` | string, nullable; if non-null must be a valid ID from the theme catalog at `packages/config/themes.ts` |
+
+---
+
+### Account Settings
+
+**From `03-canonical-data-model.md` and `12-seo-and-integrations.md`:**
+
+`Account.settings` is a JSONB field. V1 supports exactly one named field:
+
+| Field | Rule |
+|---|---|
+| `gtm_container_id` | string, nullable; if non-null must be a non-empty string matching `/^GTM-[A-Z0-9]+$/`; max 20 characters |
+
+No other fields are permitted in `Account.settings` in V1. Unknown fields must be rejected at the schema validation layer.
 
 ---
 
@@ -306,6 +301,20 @@ The system must reject block creation when total active (non-soft-deleted) block
 
 Each `connected_account_id` in a social_icons block's `content.accounts` array must reference an existing `ConnectedAccount` owned by the same account (business validation layer). Validation must reject additions of unknown or cross-account references. When a connected_account_id is removed from block content via ConnectedAccountsService.removeConnectedAccount, no dangling reference may remain.
 
+**`style_overrides` field validation:**
+
+`style_overrides` is an optional JSONB field on Block. Validation rules:
+
+| Rule | Requirement |
+|---|---|
+| Type | Object (key-value map) or null |
+| Null | Accepted — means the block inherits all styles from the active theme |
+| Key format | String keys only; no nested objects deeper than one level per key |
+| Forbidden values | Resolved styles and inherited theme values must not be stored here; the system must reject any write that contains a resolved style blob |
+| Unknown keys | Unknown style keys are passed through without rejection — the Renderer selects valid keys; invalid keys are silently ignored at render time |
+
+`style_overrides` is never accepted from the client for Reference Blocks (`avatar`, `name`, `bio`) — these blocks have no user-controllable styles in V1.
+
 **Block type enum:** See `03-canonical-data-model.md` — BlockType enum (9 values).
 
 ---
@@ -356,6 +365,25 @@ Deletion request must include:
 ```
 confirmation: boolean, must equal true
 ```
+
+---
+
+## AI Platform Output Validation
+
+AI responses must be treated as untrusted input and validated before use. Validation executes inside the AI Platform service layer, before any accepted content is passed to a Product Domain service.
+
+Rules:
+
+| Rule | Requirement |
+|---|---|
+| JSON format | AI response must be valid JSON. If parsing fails, the response is discarded; an empty suggestion array is returned; no error is surfaced to the user. |
+| Maximum text length | Suggested text values must not exceed the corresponding field's canonical maximum (e.g. bio suggestions must not exceed 1000 characters per `07-validation-rules.md` — Profile Content). |
+| No HTML or script content | Suggested text values must be treated as plain text. HTML tags and script content must be stripped or rejected before acceptance. |
+| Username suggestions | Any username suggested by AI must be validated against `username.policy.v1.md` (pattern, length) and checked for availability before presentation. Reserved or unavailable usernames must not be presented. |
+| Unknown fields | Unexpected fields in AI response objects are ignored; they must never be passed to Product Domain services or persisted. |
+| Suggestion count | AI Platform must not return more suggestions than the configured maximum per request (implementation-configured constant). Excess suggestions are truncated. |
+
+AI output validation belongs to the AI Platform service layer. Product Domain services must not receive raw AI output.
 
 ---
 
@@ -434,7 +462,7 @@ Implementation must not:
 - bypass Product Domain ownership
 - validate `profile_id` — it does not exist
 - validate `password` fields — V1 has no password authentication
-- validate `channel` on OTP endpoints — email is the only OTP channel
+- validate `channel` on any OTP endpoint — Email OTP does not exist in V1
 - validate `open_in_new_tab` in button settings — not a V1 field
 - validate `show_labels` in social_icons settings — not a V1 field
 - validate `has_label` or `label` in divider content — not a V1 field

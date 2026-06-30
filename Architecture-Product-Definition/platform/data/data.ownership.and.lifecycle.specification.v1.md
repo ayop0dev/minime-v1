@@ -166,7 +166,7 @@ Temporary records exist only while completing a process.
 
 Examples:
 
-* OTP state
+* Username reservation state
 * Upload processing
 * Temporary AI context
 

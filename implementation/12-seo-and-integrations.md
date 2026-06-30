@@ -138,20 +138,19 @@ Implementation must not:
 Integrations is a Cross-Cutting Product Capability.
 
 - V1 scope: Google Tag Manager (GTM) only.
-- GTM is optional by design: if no container ID is configured, no snippet is injected.
+- GTM is optional by design: if no container ID is provided by the account owner, no snippet is injected for that account's public profile.
 - GTM failure must not affect core profile rendering or analytics recording.
-- Integration configuration is never user data; it is environment/deployment configuration.
-- No integration data is stored in any database entity.
+- GTM Container ID is user-provided account configuration. The account owner supplies their GTM Container ID through account settings; it is stored in `Account.settings.gtm_container_id`. It is not deployment-wide environment configuration.
+- No integration metadata is stored as a standalone database entity. The GTM Container ID is stored as part of `Account.settings`.
 
 ---
 
 ### What Integrations Does NOT Own
 
 - Analytics data (owned by Analytics domain via `AnalyticsEvent`)
-- Any database entity
+- Any standalone database entity (GTM Container ID is stored in `Account.settings`, owned by Account domain)
 - Any API endpoint
 - Any background job
-- User configuration (GTM container ID is deployment configuration, not user preference)
 
 ---
 
@@ -159,7 +158,7 @@ Integrations is a Cross-Cutting Product Capability.
 
 **V1 scope:** GTM only.
 
-**Container ID:** `GTM_CONTAINER_ID` environment variable. If absent or empty, GTM is not loaded.
+**Container ID:** Provided by the account owner through account settings, stored as `Account.settings.gtm_container_id`. If absent or empty for an account, the GTM snippet is not injected for that account's public profile.
 
 **Injection rule:** The GTM snippet is injected into the `<head>` of the public profile HTML response, immediately after the opening `<head>` tag.
 
@@ -181,9 +180,9 @@ Where `GTM-XXXXXX` is the configured `GTM_CONTAINER_ID`.
 
 Per `08-security-model.md`:
 
-- GTM container ID is a deployment-level configuration value, not a user-provided value. It must not be accepted from client requests.
+- GTM container ID is user-provided account configuration. It is accepted through the account settings API (authenticated endpoint), validated on write, and stored in `Account.settings`. It must not be accepted as a raw parameter in public profile requests.
 - GTM snippet is injected server-side, not client-side. Client-supplied script content is never trusted.
-- GTM loading must be conditional: absent `GTM_CONTAINER_ID` means no snippet is injected; no error is raised.
+- GTM loading must be conditional: absent or empty `Account.settings.gtm_container_id` for the requested account means no snippet is injected; no error is raised.
 - GTM provider failures (network errors, script load failures) must not affect profile rendering. GTM is loaded asynchronously and must not block rendering.
 
 ---
@@ -192,8 +191,8 @@ Per `08-security-model.md`:
 
 - GTM snippet injection executes inside the Rendering pipeline, as the final step of HTML assembly.
 - GTM snippet is part of the cached render response.
-- `GTM_CONTAINER_ID` is read once at application startup. It does not change at runtime without restart.
-- If `GTM_CONTAINER_ID` is present, the snippet is injected unconditionally for all public profile responses, regardless of account or profile content.
+- `Account.settings.gtm_container_id` is read from the account's stored settings at render time for each public profile.
+- If `Account.settings.gtm_container_id` is present and non-empty for the requested account, the snippet is injected into that account's public profile response only.
 - The snippet must be injected as a static server-rendered string, not as a client-side React/Next.js component that fetches configuration.
 
 ---
@@ -202,9 +201,9 @@ Per `08-security-model.md`:
 
 Implementation must not:
 
-- Allow users to configure their own GTM container ID.
-- Store GTM configuration in any database entity.
-- Expose `GTM_CONTAINER_ID` in API responses, logs, or client-side code.
+- Inject a GTM snippet without a valid GTM Container ID stored in `Account.settings.gtm_container_id` for the requested account.
+- Store GTM configuration as a standalone database entity; `Account.settings` is the only permitted storage for the GTM Container ID.
+- Expose the account's GTM container ID in public API responses, server logs, or client-side rendered code.
 - Introduce additional integration providers (analytics, chat, etc.) without updating the frozen architecture.
 - Block profile rendering on GTM load failure.
 - Use GTM as a substitute for Minime's own analytics recording (see `04-service-contracts.md` — AnalyticsService).

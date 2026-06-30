@@ -160,39 +160,54 @@ StoragePlatform.buildPublicUrl(key: string): string
 
 The AI Platform is responsible for:
 
-- Generating username suggestions based on user context
-- Generating social account setup suggestions
-- Generating basic profile improvement suggestions
-- Generating onboarding guidance for new users
+- Executing on-demand profile Analysis Sessions when the user explicitly requests analysis ("Analyze My Profile")
+- Constructing context from canonical account state before each Analysis Session
+- Delegating inference to a single configured Provider via `Provider.execute(...)`
+- Returning profile improvement suggestions for user review — never applying changes automatically
 
 The AI Platform is not responsible for:
 
 - Applying any changes to business data (user confirmation is always required)
+- Username suggestions during registration (not a V1 AI capability)
+- Social account setup suggestions (not a V1 AI capability)
+- Onboarding guidance (not a V1 AI capability)
+- Background analysis or scheduled AI tasks (no background AI in V1)
+- AI chat or conversational flows (not a V1 capability)
 - Determining platform correctness (Data Platform is authoritative, never AI)
 - Blocking product domain operations on AI failure
-- Storing accepted decisions (accepted decisions result in normal domain mutations; AI Platform has no separate storage)
+- Storing accepted decisions, suggestion history, or learned preferences (no AI persistence in V1)
 
 ---
 
 ### V1 AI Scope
 
-V1 AI capabilities are limited to:
+V1 AI capabilities are limited to a single feature:
 
 ```
-Username suggestions        — candidate usernames presented during registration
-Social setup assistance     — suggested social platforms/handles during connected account setup
-Profile improvement         — optional suggestions for bio, display name, or profile structure
-Onboarding guidance         — step-by-step onboarding assistance for new accounts
+Analyze My Profile    — on-demand Analysis Session; triggered only by explicit user request
 ```
 
-The following are not AI Platform responsibilities in V1 and must not be implemented:
+An Analysis Session:
+- Is triggered by an explicit "Analyze My Profile" user action
+- Reads current account state (profile, blocks, connected accounts, analytics summary)
+- Passes context to a single `Provider.execute(...)` call
+- Returns profile improvement suggestions for user review
+- Does not execute, apply, or persist any change
+- Returns a cached result if input state is identical to a recent request (input hash match within `AI_CACHE_TTL_SECONDS`)
+
+The following are explicitly excluded from V1 and must not be implemented:
 
 ```
-Automatic profile publication
-Automatic content generation without user review
-AI-driven analytics interpretation
-AI-driven rendering decisions
-AI-driven security decisions
+Username suggestions             — not a V1 AI capability
+Social setup suggestions         — not a V1 AI capability
+Onboarding guidance              — not a V1 AI capability
+Background AI analysis           — not a V1 capability
+AI chat or conversational flows  — not a V1 capability
+Automatic profile publication    — not a V1 capability
+Automatic content generation     — not a V1 capability
+AI-driven analytics interpretation  — not a V1 capability
+AI-driven rendering decisions    — not a V1 capability
+AI-driven security decisions     — not a V1 capability
 ```
 
 ---
@@ -203,33 +218,45 @@ AI responses must never modify business state automatically.
 
 Every AI-generated suggestion must be presented to the user for review. The user must take an explicit action (confirm, reject, or modify) before any business mutation occurs.
 
-If the user confirms an AI suggestion, the resulting mutation executes through the normal Product Domain service (AccountService, ProfileService, etc.) with standard validation and event emission. The AI Platform does not own the mutation.
+If the user confirms an AI suggestion, the resulting mutation executes through the normal Product Domain service (ProfileService, etc.) with standard validation and event emission. The AI Platform does not own the mutation.
 
 ---
 
-### AIPlatform Interface
+### AIService Interface
+
+`AIService` is the single application entry point for AI. Product domain services must not invoke `Provider.execute` directly.
 
 ```
-AiPlatform.suggestUsernames(context: { display_name?: string, interests?: string[] }):
-  Promise<string[]>
-  — Returns candidate usernames; not applied automatically.
-  — Failure returns empty array; never throws to caller.
+AIService.analyzeProfile(context: {
+  account_id: string,
+  display_name: string,
+  bio?: string,
+  blocks: Block[],
+  connected_accounts: ConnectedAccount[],
+  analytics_summary?: { total_views: number, total_clicks: number }
+}): Promise<{
+  suggestions: Array<{ area: string, suggestion: string, reason?: string }>
+}>
+  — Triggered only by explicit "Analyze My Profile" user request.
+  — Computes an input hash from context fields; returns cached result if hash matches within AI_CACHE_TTL_SECONDS.
+  — Executes one Provider.execute(...) call per Analysis Session when cache does not match.
+  — If AI_API_KEY is absent or empty: returns { suggestions: [] } silently; never throws.
+  — On any provider failure, timeout, or invalid response: returns { suggestions: [] }; never throws to caller.
+```
 
-AiPlatform.suggestSocialSetup(context: { platform?: string, profile_hint?: string }):
-  Promise<Array<{ platform: SocialPlatform, suggested_username: string }>>
-  — Returns candidate social account configurations.
-  — Failure returns empty array; never throws to caller.
+---
 
-AiPlatform.suggestProfileImprovements(context: { display_name: string, bio?: string }):
-  Promise<Array<{ field: string, suggestion: string }>>
-  — Returns suggested profile content changes.
-  — Failure returns empty array; never throws to caller.
+### Provider.execute Pattern
 
-AiPlatform.generateOnboardingGuidance(context: { account_id: string, completed_steps: string[] }):
-  Promise<OnboardingStep[]>
-  — Returns onboarding steps relevant to current account state.
-  — Guidance only; does not mutate business state.
-  — Failure returns empty array; never throws to caller.
+`Provider.execute` is the single execution boundary between `AIService` and the configured AI provider.
+
+```
+Provider.execute(prompt: string): Promise<string>
+  — Executes one inference request against the configured provider and model.
+  — Provider is selected by AI_PROVIDER; model is selected by AI_MODEL_ID.
+  — Replacing the provider requires only env var change and a compatible adapter. No domain service code changes.
+  — Applies AI_TIMEOUT_MS timeout; rejects on timeout (AIService converts to empty suggestions).
+  — One Provider and one Model are active at runtime. Multi-provider routing is not a V1 capability.
 ```
 
 ---
@@ -253,19 +280,19 @@ V1 AI provider is configured entirely through environment variables. No provider
 
 | Variable | Description | Default |
 |---|---|---|
-| `AI_PROVIDER` | Provider identifier. Fully implementation-configurable. | see `.env.example` |
+| `AI_PROVIDER` | Provider identifier. Fully implementation-configurable. No specific vendor is required. | see `.env.example` |
 | `AI_MODEL_ID` | Model ID within the configured provider. Fully implementation-configurable. | see `.env.example` |
-| `AI_API_KEY` | Provider API key. Never logged or exposed. | — (required) |
-| `AI_MAX_REQUESTS_PER_MINUTE` | Max AI calls per account per minute. | `10` |
-| `AI_TIMEOUT_MS` | Maximum milliseconds to wait for an AI response. | `10000` |
+| `AI_API_KEY` | Provider API key. Never logged or exposed. If absent: AI is disabled; `AIService` returns empty suggestions. | — (required) |
+| `AI_TIMEOUT_MS` | Maximum milliseconds to wait for a `Provider.execute` response. | `10000` |
+| `AI_CACHE_TTL_SECONDS` | Cache TTL for Analysis Session results keyed by input hash. Identical profile state analyzed within TTL returns cached result without inference. | `300` |
 
 **Prompt templates** live in `packages/config/ai-prompts.ts`. They are application code, not database entities. They must not be user-editable.
 
 **Operational rules:**
-- If `AI_API_KEY` is absent or empty: AI suggestions are disabled. All AiPlatform methods return empty arrays; no error is thrown.
-- All AI calls must respect `AI_MAX_REQUESTS_PER_MINUTE` per account. Exceeding the limit returns an empty array; never throws to the caller.
-- AI calls must time out after `AI_TIMEOUT_MS`. Timeout returns empty array; never throws.
+- If `AI_API_KEY` is absent or empty: AI is disabled. `AIService.analyzeProfile` returns `{ suggestions: [] }`; no error is thrown.
+- All `Provider.execute` calls must time out after `AI_TIMEOUT_MS`. Timeout returns empty suggestions; never throws.
 - Provider and model are selected entirely via `AI_PROVIDER` and `AI_MODEL_ID`. No specific vendor is architecturally required. Replacing the provider requires only env var changes and a compatible adapter implementation; no domain service code changes.
+- Input hash is computed from the Analysis Session context. Identical context within `AI_CACHE_TTL_SECONDS` returns the cached result without executing a `Provider.execute` call.
 - AI Platform failures must be logged but must not interrupt product domain operations.
 
 ---
@@ -277,3 +304,6 @@ V1 AI provider is configured entirely through environment variables. No provider
 - AI Platform must not bypass validation rules defined in `07-validation-rules.md`.
 - AI Platform must not apply business mutations directly; all mutations execute through domain services.
 - Product domain correctness must never depend on AI Platform availability.
+- `AIService` must not be invoked from background jobs, event handlers, or scheduled tasks. AI is strictly on-demand in V1.
+- Multi-provider routing must not be implemented in V1.
+- AI Platform must not persist suggestion history, decision signals, or learned preferences. No `AiDecision`, `AcceptedDecision`, or `SuggestionHistory` entity exists in V1.

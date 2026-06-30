@@ -61,7 +61,7 @@ Business state belongs to PostgreSQL. Job state belongs to BullMQ. Jobs must not
 ### Payload
 
 - Job payloads must contain only the information required for execution.
-- Payloads must not contain passwords, access tokens, refresh tokens, OTP codes, or secrets.
+- Payloads must not contain passwords, access tokens, refresh tokens, or secrets.
 - Large business entities must not be embedded in payloads. Reference entities by identifier.
 
 ### Idempotency
@@ -92,9 +92,7 @@ Every job must define a maximum execution time. Jobs exceeding the configured ti
 
 The following jobs are the only V1-approved background jobs. Each is traceable to the frozen architecture.
 
-**Note on OTP email delivery:** OTP email delivery is NOT a background job. It executes synchronously within `AuthService.requestOtp` via the `AuthEmailDelivery` adapter (V1 implementation default: Resend) before the plain-text OTP is discarded. No BullMQ job is created for OTP delivery. Plain-text OTP values must never appear in any job payload or in Redis. See `08-security-model.md` — OTP Security.
-
----
+**Note on numbering:** Job 1 (OTP Verification Expiry Cleanup) was removed when Email OTP authentication was replaced by the External Identity Provider model. Jobs are numbered starting at 2 to preserve referential stability.
 
 ### 2. OutLink Click Recording
 
@@ -122,28 +120,7 @@ The following jobs are the only V1-approved background jobs. Each is traceable t
 
 ---
 
-### 3. OtpVerification Expiry Cleanup
-
-**Queue:** `auth.otp.cleanup` (scheduled)
-
-**Owner:** Authentication domain
-
-**Trigger:** Scheduled — runs periodically (e.g., every 15 minutes).
-
-**Payload:** None (scheduled sweep).
-
-**Behavior:**
-
-- Hard-deletes `OtpVerification` records where `expires_at < NOW()`.
-- Does not affect records that have already been deleted after successful verification.
-
-**Retry:** Yes. Idempotent (repeated execution deletes no additional valid records).
-
-**Architecture basis:** `authentication.policy.v1.md` — OTP lifetime is 10 minutes. `03-canonical-data-model.md` — deletion policy: hard delete after expiry.
-
----
-
-### 4. UsernameReservation Expiry Cleanup
+### 3. UsernameReservation Expiry Cleanup
 
 **Queue:** `username.reservation.expire` (scheduled)
 
@@ -165,7 +142,7 @@ The following jobs are the only V1-approved background jobs. Each is traceable t
 
 ---
 
-### 5. Session Cleanup
+### 4. Session Cleanup
 
 **Queue:** `auth.session.cleanup` (scheduled)
 
@@ -186,7 +163,7 @@ The following jobs are the only V1-approved background jobs. Each is traceable t
 
 ---
 
-### 6. OutLink Purge (Archived → Hard Delete)
+### 5. OutLink Purge (Archived → Hard Delete)
 
 **Queue:** `out-links.purge` (scheduled)
 
@@ -208,7 +185,7 @@ The following jobs are the only V1-approved background jobs. Each is traceable t
 
 ---
 
-### 7. AnalyticsEvent Retention
+### 6. AnalyticsEvent Retention
 
 **Queue:** `analytics.retention` (scheduled)
 
@@ -238,6 +215,7 @@ Implementation must not introduce jobs for:
 - **Publishing** — no publishing workflow in V1
 - **OAuth token refresh** — no OAuth connections in V1
 - **Social account verification** — Social Accounts domain owns no storage and has no verification flow
+- **Email OTP delivery** — Email OTP is not supported in V1; authentication is provider-based
 - **Phone OTP delivery** — phone OTP is not supported in V1
 - **SMS delivery** — SMS is not supported in V1
 - **Profile publication state management** — no draft/published state in V1
@@ -286,7 +264,7 @@ Job workers must go through Product Domain services, not directly to repositorie
 
 ---
 
-### 8. Account Deletion Cascade
+### 7. Account Deletion Cascade
 
 **Queue:** `account.deletion.cascade`
 
@@ -343,8 +321,8 @@ Account deletion executes in two phases:
 1. `Account.status = 'deleted'` — AccountService
 2. All active sessions revoked — EventEmitter handler calls AuthService.revokeAllSessions
 
-**Asynchronous (account.deletion.cascade BullMQ job, Job 8):**
-3–9. Cross-domain cascade as defined in Job 8 above: sessions cleanup → collect out_link_ids → Analytics deletion → OutLinks deletion → Profile data + ImageAssets → ConnectedAccounts → QR storage asset deletion.
+**Asynchronous (account.deletion.cascade BullMQ job, Job 7):**
+3–9. Cross-domain cascade as defined in Job 7 above: sessions cleanup → collect out_link_ids → Analytics deletion → OutLinks deletion → Profile data + ImageAssets → ConnectedAccounts → QR storage asset deletion.
 
 **Cascade idempotency guarantee:** out_link_ids are collected from the database in a read-only step (step 2 of the cascade) before any deletion occurs. Analytics runs before OutLinks are deleted. On retry, if OutLinks are already deleted, the read returns empty and analytics is a safe no-op (already completed).
 

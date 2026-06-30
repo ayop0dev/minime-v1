@@ -188,12 +188,18 @@ The structure of `content` depends on the block type.
 
 Block-specific user preferences that are still considered content-level configuration.
 
-Examples:
+In V1, settings are type-specific and all default to empty objects `{}` except for Reference Blocks (`avatar`, `name`, `bio`) which declare their data source (`{ source: "profile_avatar" }`, `{ source: "profile_display_name" }`, `{ source: "profile_bio" }`).
 
-* Whether a button opens in a new tab
-* Whether social icons show labels
-* Whether a divider has a label
-* Text alignment when explicitly controlled by the user
+The following are **not** V1 settings fields and must not be introduced:
+
+```text
+open_in_new_tab   — not a V1 field (button block)
+show_labels       — not a V1 field (social_icons block)
+has_label         — not a V1 field (divider block)
+label             — not a V1 field (divider block)
+```
+
+Per-type settings schemas are defined in `implementation/03-canonical-data-model.md` and `implementation/07-validation-rules.md`.
 
 Settings must not contain theme-level styling decisions.
 
@@ -430,7 +436,6 @@ A button may store:
 ```text
 label
 url
-open_in_new_tab
 ```
 
 But it must not store:
@@ -440,9 +445,12 @@ button_color
 font_family
 global_spacing
 theme_style
+open_in_new_tab
 ```
 
-Unless explicitly approved in a block-specific specification.
+Unless explicitly approved in a block-specific specification. In V1, `open_in_new_tab` is not an approved button settings field.
+
+The complete list of approved V1 settings fields per block type is defined in `implementation/03-canonical-data-model.md` and `implementation/07-validation-rules.md`.
 
 ---
 

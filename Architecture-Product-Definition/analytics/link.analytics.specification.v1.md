@@ -64,7 +64,7 @@ Only.
 
 Events are transported by Platform Events.
 
-Analytics consumes canonical `out_link.followed` events from Platform Events only.
+Analytics consumes canonical `out-link.clicked` events from Platform Events only.
 
 ---
 

@@ -212,7 +212,6 @@ Cache entries expire automatically. Expired cache entries are regenerated from P
 
 Cache entries must not store:
 
-- OTP codes
 - Access tokens
 - Refresh tokens
 - Canonical business data as the primary persistence location

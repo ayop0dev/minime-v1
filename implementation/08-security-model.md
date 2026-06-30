@@ -28,8 +28,7 @@ The security model defines:
 - trust boundaries
 - authentication methods and their security requirements
 - session and token lifecycle
-- OTP-specific security rules
-- Google Sign-In security rules
+- provider authentication security rules (Google, Apple)
 - authorization enforcement
 - secret management
 - data protection
@@ -55,18 +54,20 @@ The backend is the only trusted execution environment.
 V1 supports exactly two authentication methods:
 
 ```
-Email OTP
 Google Sign-In
+Apple Sign-In
 ```
+
+Authentication is provider-based only. Minime never authenticates users directly.
 
 The following are not supported in V1 and must not be implemented:
 
 ```
+Email OTP
 Phone OTP
 SMS Verification
 WhatsApp Verification
 Password Authentication
-Apple Sign-In
 Facebook Login
 X Login
 LinkedIn Login
@@ -76,37 +77,29 @@ Authentication must execute in the backend. Authentication must complete before 
 
 ---
 
-## OTP Security
-
-**OTP constants:** See `07-validation-rules.md` — Authentication constants (format, lifetime, attempt limits, cooldown).
-
-**Security enforcement requirements:**
-
-- Plain-text OTP values must never be stored. Only the hash is stored in `OtpVerification.code_hash`.
-- The hash algorithm is an implementation choice. The plain-text OTP must be discarded after hashing.
-- OtpVerification records must be hard-deleted after successful verification or after expiry.
-- The attempt counter (`OtpVerification.attempts`) must be incremented on every failed verification.
-- When `attempts` reaches 5, the OtpVerification record must be treated as invalid (same as expired).
-- OTP codes must never appear in logs, events, error responses, or email subjects.
-- OTP codes must never appear in BullMQ job payloads. OTP email delivery executes synchronously within AuthService.requestOtp before the plain-text OTP is discarded.
-- The OTP response must not reveal whether an Account exists for the given email.
-
-**OTP resend cooldown enforcement:**
-
-Before creating a new OtpVerification record, the system must check whether an existing record for the same identifier was created within the last 60 seconds. If so, the new request must be rejected with `429 Too Many Requests`.
-
----
-
 ## Google Sign-In Security
 
 **From `authentication.policy.v1.md`:**
 
 - The Google ID token must be verified against Google's public keys on the backend.
 - Client-side assertions must never be trusted.
-- The `sub` claim from the verified token is the canonical Google identity identifier.
+- The `sub` claim from the verified token is the canonical Google identity identifier (`provider_subject`).
 - Google tokens must never be stored in the database.
 - If the token is expired or invalid, the request must be rejected with `401`.
-- A successfully verified Google identity is considered verified immediately. No secondary OTP is required.
+- A successfully verified Google identity is considered verified immediately.
+
+---
+
+## Apple Sign-In Security
+
+**From `authentication.policy.v1.md`:**
+
+- The Apple ID token must be verified against Apple's public keys on the backend.
+- Client-side assertions must never be trusted.
+- The `sub` claim from the verified token is the canonical Apple identity identifier (`provider_subject`).
+- Apple tokens must never be stored in the database.
+- If the token is expired or invalid, the request must be rejected with `401`.
+- A successfully verified Apple identity is considered verified immediately.
 
 ---
 
@@ -141,8 +134,7 @@ Per `account.deletion.policy.v1.md`, all active sessions must be invalidated at 
 |---|---|
 | Access token | Short-lived JWT. Not stored in PostgreSQL or Redis. |
 | Refresh token | Rotated on every use. Only the hash is stored (`Session.refresh_token_hash`). |
-| Verification token | Short-lived, single-use. Issued after OTP verification; consumed by registration or sign-in. |
-| Google token | Short-lived, single-use. Issued by backend after Google ID token verification; consumed by registration. |
+| Provider assertion | Short-lived, single-use. Issued by backend after provider assertion verification; consumed by registration. Must not be stored in PostgreSQL or Redis. |
 
 Access tokens must not appear in logs.
 
@@ -180,7 +172,7 @@ Authorization verifies Account ownership.
 - Every request accessing private data must verify Account ownership.
 - Public resources must expose only public-safe fields.
 - The internal `id` of OutLink must never be exposed publicly — routing uses `public_id` only.
-- Authentication credentials (OTP codes, verification tokens, refresh tokens) must never appear in API responses beyond the minimal disclosure required by the auth flow.
+- Authentication credentials (provider assertions, refresh tokens) must never appear in API responses beyond the minimal disclosure required by the auth flow.
 
 ---
 
@@ -195,8 +187,7 @@ Secrets include:
 - Redis credentials
 - Object Storage credentials
 - Google OAuth client credentials
-- `EMAIL_PROVIDER_API_KEY` — email provider API key for OTP email delivery
-- `EMAIL_FROM_ADDRESS` — sender address for OTP emails
+- Apple OAuth client credentials
 - `AI_API_KEY` — AI provider API key
 
 Secrets must never appear in logs, events, responses, or job payloads.
@@ -207,12 +198,9 @@ Secrets must never appear in logs, events, responses, or job payloads.
 
 Redis must not store:
 
-- OTP codes (plain text or hash)
 - Access tokens
 - Refresh tokens
 - Canonical business data
-
-BullMQ job payloads (which transit Redis) must not contain OTP codes in any form. OTP delivery is synchronous, not queued.
 
 Redis stores only:
 
@@ -259,7 +247,6 @@ Responses must never expose:
 - Stack traces
 - Repository or Prisma implementation details
 - Internal infrastructure details
-- OTP codes
 - Refresh tokens (except during creation or rotation)
 
 ---
@@ -278,8 +265,8 @@ Responses must never expose:
 
 Logs must not contain:
 
-- OTP codes
 - Authentication tokens (access or refresh)
+- Provider assertions
 - Secrets or credentials
 - Sensitive personal information not required for diagnostics
 
@@ -298,10 +285,8 @@ Security events must be logged:
 
 Rate limiting must protect:
 
-- `POST /api/v1/auth/otp/request` — by identifier (email)
-- `POST /api/v1/auth/otp/verify` — by identifier (email)
-- `POST /api/v1/auth/google` — by IP
-- `POST /api/v1/auth/session` — by identifier
+- `POST /api/v1/auth/provider` — by IP
+- `POST /api/v1/auth/register/provider` — by IP
 - `GET /api/v1/usernames/availability` — by IP
 - `POST /api/v1/usernames/reservations` — by IP
 - Public rendering `/{username}` — by IP
@@ -350,7 +335,7 @@ Background jobs must not:
 
 AI responses must be treated as untrusted input. AI responses must be validated before use. User confirmation is required before applying AI-generated changes. AI responses must never modify business state automatically.
 
-AI Platform calls must be rate-limited per account. Rate limits are configured via `AI_MAX_REQUESTS_PER_MINUTE` environment variable. Exceeding the rate limit must return an empty suggestions array, never throw to the caller.
+`AIService.analyzeProfile` is the single entry point for AI. It must not be invoked from authentication or authorization flows. `Provider.execute` must time out after `AI_TIMEOUT_MS`; timeout returns empty suggestions, never throws.
 
 AI API keys must never appear in logs, events, or responses.
 
@@ -371,12 +356,11 @@ Implementation must not:
 - bypass authentication or authorization
 - bypass validation
 - bypass repositories
-- store plain-text OTP codes
 - implement password authentication (V1 has no passwords)
-- implement phone OTP or SMS authentication
-- trust Google ID tokens without backend verification against Google's public keys
+- implement Email OTP, phone OTP, SMS authentication, or AuthEmailDelivery
+- trust provider assertions without backend verification against the provider's public keys
+- trust client-side provider assertion results
 - allow AI-generated changes without explicit user confirmation
 - store access tokens or refresh tokens in plain text
 - expose raw `OutLink.id` publicly (only `public_id` appears in public routes)
 - allow a deleted account to create a new session
-- expose OTP codes in logs, events, or responses

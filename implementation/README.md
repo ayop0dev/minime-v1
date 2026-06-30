@@ -68,7 +68,9 @@ These are derived directly from the frozen architecture. Every implementation de
 
 **Authentication**
 
-- Supported methods in V1: Email OTP and Google Sign-In only.
+- Supported providers in V1: Google Sign-In and Apple Sign-In only.
+- Authentication is provider-based only. Minime never authenticates users directly.
+- Email OTP is not supported in V1.
 - Phone OTP is not supported in V1.
 - SMS is not supported in V1.
 - OAuth is not implemented in V1 (ConnectedAccounts does not use OAuth).
@@ -177,7 +179,7 @@ implementation/
 - Introduce `profile_id` as a foreign key anywhere
 - Implement `publishProfile` or `unpublishProfile`
 - Implement username editing operations
-- Implement phone OTP or SMS verification
+- Implement Email OTP, phone OTP, or SMS authentication
 - Implement OAuth flows or token storage
 - Add lifecycle states not defined by the frozen architecture
 - Add Product Domains not defined by the frozen architecture

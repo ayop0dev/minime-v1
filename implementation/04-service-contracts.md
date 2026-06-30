@@ -118,7 +118,7 @@ deleteAccount({account_id})
   — AccountService must not directly invoke repositories outside its allowed dependencies; cross-domain cleanup is delegated to the account.deletion.cascade BullMQ job
   — account record is retained permanently (account_id referenced by audit logs)
   — username permanently reserved; not released in V1
-  — cascade order, idempotency, and partial failure rules: see 10-background-jobs.md — Job 8
+  — cascade order, idempotency, and partial failure rules: see 10-background-jobs.md — Job 7
 ```
 
 ### Queries
@@ -148,7 +148,7 @@ BlockRepository
 ConnectedAccountRepository
 OutLinkRepository
 AnalyticsRepository
-AiPlatform
+AIService
 ```
 
 ### Emitted Events
@@ -183,38 +183,17 @@ account.deleted
 ### Commands
 
 ```
-requestOtp({email})
-  — validates email format
-  — enforces 60-second resend cooldown
-  — generates 6-digit OTP; hashes it for storage
-  — sends OTP email synchronously via AuthEmailDelivery before persisting OtpVerification record
-  — if AuthEmailDelivery fails: returns delivery error; OtpVerification record is not created
-  — if delivery succeeds: creates OtpVerification record (code_hash stored, plain-text OTP discarded)
-  — plain-text OTP is never stored, never logged, never placed in any job payload
+verifyProviderAssertion({provider, provider_assertion})
+  — validates provider assertion (e.g. Google or Apple ID token) against provider public keys
+  — extracts provider_subject (sub claim) and provider_email from verified assertion
+  — returns {account_id} if account exists, or {needs_registration: true, provider_assertion} if not
 
-verifyOtp({email, code})
-  — validates OTP code against stored hash
-  — enforces 5-attempt maximum
-  — hard deletes OtpVerification on success
-  — returns short-lived verification_token
-
-authenticateWithGoogle({id_token})
-  — validates Google ID token against Google public keys
-  — extracts sub claim as identifier
-  — returns {account_id} if account exists, or {needs_registration: true, google_token} if not
-
-completeRegistrationWithOtp({reservation_id, verification_token})
+completeRegistrationWithProvider({reservation_id, provider, provider_assertion})
   — validates reservation exists
-  — validates verification_token
-  — calls AccountService.createAccount({username_from_reservation, auth_type: 'email', auth_identifier: email})
+  — validates provider_assertion
+  — calls AccountService.createAccount({username_from_reservation, provider, provider_subject, provider_email})
   — deletes UsernameReservation
-  — creates Session; issues tokens
-
-completeRegistrationWithGoogle({reservation_id, google_token})
-  — validates reservation exists
-  — validates google_token
-  — calls AccountService.createAccount({username_from_reservation, auth_type: 'google', auth_identifier: sub})
-  — deletes UsernameReservation
+  — creates AuthenticationIdentity record
   — creates Session; issues tokens
 
 createSession({account_id})
@@ -245,11 +224,10 @@ getActiveSessions({account_id})      — returns all active non-expired sessions
 ### Allowed Dependencies
 
 ```
-AuthRepository              — OtpVerification, Session, AuthCredential
+AuthRepository              — Session, AuthenticationIdentity
 AccountRepository           — read account during session creation
 UsernameReservationRepository — read and delete reservation during registration
 AccountService              — createAccount (registration only)
-AuthEmailDelivery           — OTP email delivery; synchronous; OTP emails only; no user notifications
 EventBus
 ```
 
@@ -262,15 +240,13 @@ ConnectedAccountRepository
 OutLinkRepository
 AnalyticsRepository
 StoragePlatform
-AiPlatform
+AIService
 ```
 
 ### Emitted Events
 
 ```
-auth.otp.requested
-auth.otp.verified
-auth.google.authenticated
+auth.provider.authenticated
 auth.registration.completed
 auth.session.created
 auth.session.refreshed
@@ -280,8 +256,10 @@ auth.logout
 
 ### Implementation Rules
 
-- Authentication methods, OTP constants, and token security: See `08-security-model.md` and `07-validation-rules.md`.
+- Authentication methods, supported providers, and token security: See `08-security-model.md` and `07-validation-rules.md`.
 - AuthService must not own profile content.
+- AuthService must not implement Email OTP, direct email authentication, or AuthEmailDelivery.
+- AuthService must not store provider access tokens or refresh tokens.
 
 ---
 
@@ -330,7 +308,7 @@ BlockRepository
 ConnectedAccountRepository
 AnalyticsRepository
 StoragePlatform
-AiPlatform
+AIService
 ```
 
 ### Emitted Events
@@ -416,6 +394,10 @@ updateConnectedAccount({id, account_id, username})
   — only username is editable; platform is immutable
   — calls SocialAccountsService.validateAndNormalize to regenerate url
   — persists updated ConnectedAccount{username, url}
+  — finds all social_icons blocks owned by account_id whose content.accounts array references this connected_account_id
+  — for each affected block: calls OutLinksService.archiveOutLink for every active OutLink associated with (block_id, connected_account_id)
+  — for each affected block: calls OutLinksService.createOutLink with the new destination_url, block_id, block_type 'social_icons', and connected_account_id
+  — after persistence: invalidates profile cache (profile:public:{username})
 
 removeConnectedAccount({id, account_id})
   — ownership verified via account_id before deletion
@@ -460,7 +442,7 @@ AccountRepository
 ProfileContentRepository
 AnalyticsRepository
 StoragePlatform
-AiPlatform
+AIService
 ```
 
 ### Emitted Events
@@ -500,19 +482,20 @@ uploadAvatar({account_id, file})
   — stores file via StoragePlatform
   — updates ProfileContent.avatar_storage_key with returned storage key
 
-addBlock({account_id, type, content, settings, sort_order})
+addBlock({account_id, type, content, settings, sort_order, style_overrides?})
   — validates type against approved BlockType enum
   — validates content and settings against per-type schema
   — enforces max 1 per account for identity blocks (avatar, name, bio)
   — enforces MAX_BLOCKS_PER_ACCOUNT total active blocks per account; rejects with business error if limit is reached
-  — creates Block record
+  — creates Block record; style_overrides stores only explicit user-authored style keys; absent or null means full inheritance from the active Theme at render time
   — if block type is `button`: calls OutLinksService.createOutLink once (connected_account_id = null)
   — if block type is `social_icons`: calls OutLinksService.createOutLink once per entry in content.accounts (connected_account_id = that entry's connected_account_id)
 
-updateBlock({id, account_id, content?, settings?})
+updateBlock({id, account_id, content?, settings?, style_overrides?})
   — validates ownership via account_id
   — validates updated content/settings against per-type schema
-  — mutates Block.content and/or Block.settings
+  — mutates Block.content and/or Block.settings and/or Block.style_overrides
+  — style_overrides stores only explicit user-authored style keys; null clears all overrides (full inheritance from active Theme); inherited values must not be stored
   — for `button` blocks: if label or url changes, archives old OutLink and creates new OutLink
   — for `social_icons` blocks: compares old and new content.accounts; archives OutLinks for removed entries; creates OutLinks for added entries; entries with unchanged connected_account_id retain their OutLink
 
@@ -579,7 +562,7 @@ UsernameReservationRepository
 ConnectedAccountRepository
 OutLinkRepository
 AnalyticsRepository
-AiPlatform
+AIService
 ```
 
 ### Emitted Events
@@ -647,24 +630,34 @@ StoragePlatform             — read-only; buildPublicUrl only; RenderingService
 CacheDataService (Redis)
 ```
 
+### Allowed Dependencies (additional)
+
+```
+EventBus   — for emitting profile.viewed after successful public profile presentation
+```
+
 ### Forbidden Dependencies
 
 ```
 AuthRepository
 AnalyticsRepository
 Any write operation
-EventBus
 ```
 
 ### Emitted Events
 
-None.
+```
+profile.viewed
+```
 
 ### Implementation Rules
 
 - RenderingService must be stateless.
 - RenderingService must never write to any repository.
 - RenderingService reads directly from repositories for performance. It does not go through other domain services.
+- After `getRenderedProfile` returns successfully and the public profile response is delivered, the public profile rendering pipeline must determine `device_category` using the platform device classification policy before emitting `profile.viewed`. Supported values: `desktop`, `mobile`, `tablet`. Device classification must occur in the render path before the event is emitted; Analytics must not classify, recalculate, or infer device_category.
+- `profile.viewed` must be emitted only after a successful public profile presentation. It must not be emitted on cache hit failures, rendering errors, or suspended/deleted account responses.
+- Public rendering must not wait on `profile.viewed` emission or on analytics persistence. If event emission fails, profile rendering must still succeed.
 - For `button` blocks: look up one active OutLink by `(block_id, connected_account_id = null)` via OutLinkRepository. Render as `/out/{public_id}`.
 - For `social_icons` blocks: look up one active OutLink per icon by `(block_id, connected_account_id)` via OutLinkRepository. Each icon in the rendered output uses its own `/out/{public_id}`. Icons with no active OutLink are omitted from the rendered output.
 - Raw destination URLs from block content must not appear in public render payloads for tracked links.
@@ -747,7 +740,7 @@ BlockRepository
 ConnectedAccountRepository
 AnalyticsRepository
 StoragePlatform
-AiPlatform
+AIService
 ```
 
 ### Emitted Events
@@ -828,7 +821,7 @@ BlockRepository
 ConnectedAccountRepository
 OutLinkRepository
 StoragePlatform
-AiPlatform
+AIService
 ```
 
 ### Emitted Events
@@ -841,6 +834,7 @@ analytics.retention.completed
 
 - AnalyticsService must never modify business entities.
 - Valid event types: See `03-canonical-data-model.md` — AnalyticsEventType enum.
+- `recordProfileView` accepts `{account_id, device_category}` as provided in the `profile.viewed` event payload emitted by the public profile rendering pipeline. AnalyticsService must not classify, recalculate, or infer `device_category`. The value received is the sole value recorded.
 - No visitor identity stored (no username, no IP, no session).
 - No geographic data stored (no country).
 - No referrer data stored.
@@ -855,8 +849,7 @@ analytics.retention.completed
 | Data (PostgreSQL via Prisma) | Accessed through repositories only; never from controllers or services directly |
 | Storage (Object Storage) | File upload, key storage, and URL construction; ProfileService (avatar and image asset upload/deletion); RenderingService (buildPublicUrl only — read-only) |
 | Events (NestJS EventEmitter) | In-process event notification after business persistence |
-| AI | Optional analysis; AI responses require user confirmation before any business mutation |
-| AuthEmailDelivery | Auth-domain-owned OTP email adapter; V1 implementation default backed by Resend; used only by AuthService.requestOtp for synchronous OTP delivery; must not be used for user notifications, campaigns, notification history, push notifications, or any purpose other than OTP delivery; if delivery fails, requestOtp returns an error and no OtpVerification record is created |
+| AI | On-demand Analysis Session via `AIService.analyzeProfile`; triggered only by explicit "Analyze My Profile" user request; AI responses require user confirmation before any business mutation |
 
 **NestJS EventEmitter characteristics:**
 
@@ -894,7 +887,7 @@ Reverse dependencies are prohibited.
 | Repository | Owning Domain |
 |---|---|
 | AccountRepository | Account |
-| AuthRepository (OtpVerification, Session, AuthCredential) | Authentication |
+| AuthRepository (Session, AuthenticationIdentity) | Authentication |
 | UsernameReservationRepository | Username |
 | ProfileContentRepository | Profile |
 | BlockRepository | Profile |
@@ -921,11 +914,11 @@ Implementation must not:
 - allow Platform Services to own Product Domain decisions
 - allow services to mutate another Product Domain through its repository
 - introduce a User, Profile, PublicProfile, or SocialAccount entity or repository
-- introduce a NotificationService, notification inbox, notification preferences, push notification system, or any product notification system — OTP email delivery is the only email capability in V1 and is owned by the Auth-domain AuthEmailDelivery adapter
+- introduce a NotificationService, notification inbox, notification preferences, push notification system, or any product notification system — Minime V1 has no email delivery capability; authentication is provider-based
 - reference profile_id anywhere
 - implement publishProfile, unpublishProfile, or any profile publication command
 - implement changeUsername (username is immutable in V1)
-- implement phone OTP or SMS authentication
+- implement Email OTP, phone OTP, SMS authentication, or AuthEmailDelivery
 - implement OAuth provider connections (connectProvider, refreshProviderConnection, revokeProviderConnection)
 - implement social account verification (verifySocialAccount)
 - claim distributed event delivery through NestJS EventEmitter

@@ -140,6 +140,31 @@ The AI Platform never:
 
 ---
 
+# V1 AI Execution Model
+
+In V1, the only AI capability is "Analyze My Profile" — an on-demand Analysis Session triggered by explicit user request.
+
+An Analysis Session:
+- Is triggered only when the user explicitly requests analysis
+- Reads current account state (profile, blocks, connected accounts, analytics summary)
+- Passes context to `AIService.analyzeProfile`, which delegates to a single `Provider.execute(...)` call
+- Returns profile improvement suggestions for user review
+- Does not modify any business data
+- Returns a cached result if account state is identical to a recent request (input hash match)
+
+The following are explicitly outside V1 scope and must not be implemented:
+
+- Username suggestions during registration
+- Social account setup suggestions
+- Onboarding guidance
+- Background AI analysis
+- AI chat or conversational flows
+- Implicit AI triggers from platform events
+
+`AIService` is the single application entry point for AI. `Provider.execute(...)` is the single execution boundary. One Provider and one Model are active at runtime.
+
+---
+
 # Knowledge Hierarchy
 
 The AI Platform consumes knowledge in the following order.
@@ -157,7 +182,7 @@ Historical Events
 
 ↓
 
-User Decisions
+User Decisions (V2 — no suggestion history is persisted in V1)
 
 ↓
 
@@ -222,17 +247,11 @@ Generated public representations.
 
 ---
 
-## User Decisions
+## User Decisions (V2)
 
-Accepted suggestions.
+Accepted suggestion signals and rejection signals are outside V1 scope. No suggestion history is persisted in V1.
 
-Rejected suggestions.
-
-Manual edits.
-
-Explicit preferences.
-
-User decisions provide reusable intelligence.
+In V1, accepted suggestions result in ordinary Product Domain data (e.g. an accepted bio becomes `ProfileContent.bio`). The AI Platform reads that data as canonical Product Data, not as a suggestion decision record.
 
 ---
 
@@ -250,17 +269,13 @@ Learning from user behavior reduces future AI consumption.
 
 # Accepted Decision Ownership
 
-When a user accepts an AI suggestion, the accepted content becomes canonical data.
+When a user accepts an AI suggestion, the accepted content becomes canonical data owned by the responsible Product Domain (e.g. accepting a bio suggestion writes the bio to `ProfileContent.bio`). The Product Domain service executes the write through its own repository. No separate "accepted AI decision" record exists.
 
-The Data Platform Service owns the persistence and canonical record structure for all accepted AI decisions.
+**V1 scope:** There is no `AiDecision`, `AcceptedDecision`, or `SuggestionHistory` entity in V1. The canonical data model (`implementation/03-canonical-data-model.md`) contains no such entity. Accepted suggestions are persisted as ordinary Product Domain data. Rejected suggestions are discarded — no persistence occurs.
 
-Product Domains own the business meaning of an accepted decision — they define what was accepted and why it matters within their domain. Product Domains must not create independent persistence stores for AI decisions.
+The principle of "learning from user decisions" (reusing past decisions to avoid redundant AI calls) is **outside V1 scope**. V1 does not persist suggestion history or decision signals. This capability may be introduced in a future version with the appropriate entity definition.
 
-The AI Platform reads accepted decisions through the Data Platform. The AI Platform does not own accepted decisions. The AI Platform writes nothing to accepted decision records.
-
-Writing an accepted decision record occurs only when the user explicitly accepts a suggestion through a Product Domain workflow. The Data Platform persists the result.
-
-Rejected suggestions are temporary. The Data Platform removes rejected suggestion records per the Data Retention Policy. Rejected suggestions must not accumulate indefinitely.
+The AI Platform reads Product Domain data through standard domain service interfaces. The AI Platform writes nothing to any canonical data store.
 
 ---
 
@@ -340,15 +355,11 @@ The AI Platform minimizes cost through architecture rather than infrastructure.
 Preferred order:
 
 ```text
-Reuse Existing Answer
+Reuse Cached Analysis Result (input hash match within AI_CACHE_TTL_SECONDS)
 
 ↓
 
-Reuse Previous User Decision
-
-↓
-
-Reuse Cached Context
+Reuse Previous User Decision (V2 — no suggestion history persisted in V1)
 
 ↓
 
@@ -368,6 +379,8 @@ Large Model
 ```
 
 Escalation occurs only when additional intelligence justifies additional cost.
+
+In V1, cost scales with the number of explicit "Analyze My Profile" requests. Each Analysis Session executes one `Provider.execute(...)` call. Cache hits avoid inference entirely.
 
 ---
 
@@ -515,7 +528,7 @@ It consumes knowledge.
 
 It produces suggestions.
 
-It learns from user decisions.
+It does not persist decision history in V1.
 
 It never owns truth.
 

@@ -50,7 +50,7 @@ Analytics V1 consumes only:
 
 ```text
 profile.viewed
-out_link.followed
+out-link.clicked
 ```
 
 No additional event types exist.
@@ -135,7 +135,7 @@ Only.
 
 This value is provided by the source domain.
 
-The source domain determines the device category before the event is emitted.
+The source domain determines the device category before the event is emitted, following the Device Classification Policy defined in `implementation/06-event-contracts.md` (Rendering Domain — `profile.viewed`).
 
 Analytics receives the already-classified device category from the event.
 
@@ -160,7 +160,7 @@ Link Click Measurement
 The Out Link domain emits:
 
 ```text
-out_link.followed
+out-link.clicked
 ```
 
 through Platform Events after the Out Link has been successfully followed by a visitor.
@@ -173,7 +173,7 @@ Analytics does not decide whether the Out Link was followed.
 
 # Link Click Event
 
-An `out_link.followed` event is emitted by the Out Link domain after the Out Link has been successfully followed by a visitor.
+An `out-link.clicked` event is emitted by the Out Link domain after the Out Link has been successfully followed by a visitor.
 
 ---
 
@@ -182,7 +182,7 @@ An `out_link.followed` event is emitted by the Out Link domain after the Out Lin
 Rule:
 
 ```text
-Every out_link.followed Event
+Every out-link.clicked Event
 =
 One Link Click
 ```
@@ -193,7 +193,7 @@ No visitor deduplication occurs.
 
 # Out Link Source Data
 
-Analytics receives from each `out_link.followed` event:
+Analytics receives from each `out-link.clicked` event:
 
 ```text
 out_link_id
@@ -212,7 +212,7 @@ Examples:
 
 ```text
 Public profile surface emits profile.viewed
-Out Link Domain emits out_link.followed
+Out Link Domain emits out-link.clicked
 ```
 
 Platform Events transports them.
@@ -284,7 +284,7 @@ Analytics Cannot Invent It
 Example:
 
 ```text
-No out_link.followed Event
+No out-link.clicked Event
 ↓
 No Click Count
 ```
@@ -360,7 +360,7 @@ Every analytics metric in V1 must be traceable back to:
 ```text
 profile.viewed Events
 or
-out_link.followed Events
+out-link.clicked Events
 ```
 
 and nothing else.

@@ -41,20 +41,13 @@ Those systems may be introduced in future versions.
 
 # Core Principles
 
-## Zero Variable Cost
+## Provider-Based Authentication Only
 
-Authentication V1 must maintain:
+Minime V1 authentication is provider-based only.
 
-```text
-Variable Cost ≈ 0
-```
+Minime never authenticates users directly.
 
-Authentication must not depend on:
-
-* SMS verification
-* Paid verification providers
-* Paid identity providers
-* Third-party fraud services
+Minime accepts successful authentication assertions from supported external identity providers only.
 
 ---
 
@@ -67,9 +60,7 @@ The sequence is:
 ```text
 Username Reservation
 ↓
-Authentication
-↓
-Verification
+Provider Authentication
 ↓
 Approved User Account
 ```
@@ -78,43 +69,56 @@ Approved User Account
 
 ## One Verified Identity Required
 
-Only one verified identity is required to create an account.
+Only one verified provider identity is required to create an account.
 
-Examples:
+Either of the following is sufficient:
 
 ```text
-Verified Email
+Verified Google Identity
 ```
 
 or
 
 ```text
-Verified Google Account
+Verified Apple Identity
 ```
-
-Both are sufficient.
 
 ---
 
 # Supported Authentication Methods
 
-## Email OTP
+## External Identity Providers
 
-Users may register using an email address.
+Minime V1 supports authentication exclusively through trusted external identity providers.
 
-Authentication occurs through a one-time password delivered by email.
+V1 supported providers:
 
-Successful OTP verification completes authentication.
+```text
+Google
+Apple
+```
+
+Both providers are first-class and equal. Neither provider is preferred or ranked above the other.
 
 ---
 
 ## Google Sign-In
 
-Users may register using Google Sign-In.
+Users may register or sign in using Google Sign-In.
 
 Successful Google authentication is considered verified immediately.
 
-No additional OTP is required.
+No additional verification step is required.
+
+---
+
+## Apple Sign-In
+
+Users may register or sign in using Apple Sign-In.
+
+Successful Apple authentication is considered verified immediately.
+
+No additional verification step is required.
 
 ---
 
@@ -123,11 +127,12 @@ No additional OTP is required.
 The following methods are not supported in V1:
 
 ```text
+Email OTP
 Phone Number Signup
 Phone OTP
 SMS Verification
 WhatsApp Verification
-Apple Sign-In
+Password Authentication
 Facebook Login
 X Login
 LinkedIn Login
@@ -137,152 +142,27 @@ These methods are outside the scope of V1.
 
 ---
 
-# Email OTP
-
-## Purpose
-
-Email OTP verifies ownership of an email address.
-
----
-
-## OTP Format
-
-OTP must be:
-
-```text
-6 digits
-numeric only
-```
-
-Example:
-
-```text
-481927
-```
-
----
-
-## OTP Lifetime
-
-OTP validity:
-
-```text
-10 minutes
-```
-
-After expiration:
-
-```text
-expired
-```
-
-The user must request a new OTP.
-
----
-
-## Maximum Attempts
-
-Maximum verification attempts:
-
-```text
-5
-```
-
-After reaching the limit:
-
-```text
-OTP invalidated
-```
-
-A new OTP must be generated.
-
----
-
-## Resend Cooldown
-
-Minimum resend delay:
-
-```text
-60 seconds
-```
-
-between OTP requests.
-
----
-
-## OTP Storage
-
-Plain-text OTP values must never be stored.
-
-Only hashed verification values should be stored.
-
----
-
-# Google Authentication
-
-## Verification
-
-Successful Google authentication is considered verified immediately.
-
-No secondary verification is required.
-
----
-
-## Account Creation
-
-After successful Google authentication:
-
-```text
-Username Reservation
-↓
-Google Authentication
-↓
-Approved User Account
-```
-
----
-
-# Approved User Account Creation
-
-An account becomes approved when one supported authentication method succeeds.
-
-Examples:
-
-```text
-Username Reservation
-↓
-Email OTP Verified
-↓
-Approved User Account
-```
-
-or
-
-```text
-Username Reservation
-↓
-Google Authentication
-↓
-Approved User Account
-```
-
----
-
 # Authentication Identity
 
-Each account must have a primary authentication identity.
+Each account must have at least one authentication identity.
 
-Examples:
+Authentication identities are external provider identities, not email addresses or passwords.
 
-```text
-Email Identity
-```
+## Identity Fields
 
-or
+Each authentication identity record contains:
 
 ```text
-Google Identity
+provider          — the identity provider: "google" or "apple"
+provider_subject  — the stable unique identifier issued by the provider (Google sub or Apple sub)
+provider_email    — the email address reported by the provider; informational only; not the uniqueness key
 ```
+
+## Uniqueness Rule
+
+Authentication identities are unique by `(provider, provider_subject)`.
+
+`provider_email` is informational only. It may change over the lifetime of a provider identity. It is never used as the uniqueness key.
 
 ---
 
@@ -290,18 +170,14 @@ Google Identity
 
 Authentication identities may not be duplicated across accounts.
 
-Examples:
-
 ```text
-user@example.com
+Google Account A (sub: google_sub_123)
 ```
 
 cannot create multiple Minime accounts.
 
----
-
 ```text
-Google Account A
+Apple Account A (sub: apple_sub_456)
 ```
 
 cannot create multiple Minime accounts.
@@ -313,13 +189,13 @@ cannot create multiple Minime accounts.
 If an existing authentication identity attempts registration:
 
 ```text
-Email Already Registered
+Google Account Already Registered
 ```
 
 or
 
 ```text
-Google Account Already Registered
+Apple Account Already Registered
 ```
 
 the system must not create a second account.
@@ -346,7 +222,7 @@ Authentication failed.
 
 ## expired
 
-Authentication token or OTP expired.
+Authentication token expired.
 
 ---
 
@@ -380,26 +256,6 @@ Authentication only verifies identity ownership.
 
 # Successful Registration Flow
 
-## Email Flow
-
-```text
-Username Available
-↓
-Create Reservation
-↓
-Enter Email
-↓
-Send OTP
-↓
-Verify OTP
-↓
-Create Approved User Account
-↓
-Create Public Profile
-```
-
----
-
 ## Google Flow
 
 ```text
@@ -408,6 +264,22 @@ Username Available
 Create Reservation
 ↓
 Google Sign-In
+↓
+Create Approved User Account
+↓
+Create Public Profile
+```
+
+---
+
+## Apple Flow
+
+```text
+Username Available
+↓
+Create Reservation
+↓
+Apple Sign-In
 ↓
 Create Approved User Account
 ↓
@@ -439,11 +311,11 @@ Future versions may introduce:
 * Phone verification
 * SMS OTP
 * WhatsApp verification
-* Apple Sign-In
 * Multi-factor authentication
 * Identity linking
 * Account recovery
 * Security levels
 * Device trust systems
+* Additional identity providers
 
 These features are outside the scope of V1.

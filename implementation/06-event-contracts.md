@@ -80,7 +80,7 @@ Format: `domain.action` or `domain.entity.action`
 
 ```text
 account.created
-auth.otp.requested
+auth.provider.authenticated
 profile.block.added
 connected-account.removed
 out-link.clicked
@@ -107,7 +107,7 @@ entity_id    — primary identifier of the affected entity
 Additional domain-specific fields may be included when required by subscribers.
 
 Payloads must not contain:
-- Passwords or OTP codes
+- Passwords or authentication codes
 - Access tokens or refresh tokens
 - Authentication secrets
 - Sensitive personal information beyond what subscribers require
@@ -143,10 +143,8 @@ Payloads must not contain:
 
 | Event | Publisher | Trigger |
 |---|---|---|
-| `auth.otp.requested` | AuthService | OtpVerification record created |
-| `auth.otp.verified` | AuthService | OTP verified; OtpVerification deleted |
-| `auth.google.authenticated` | AuthService | Google ID token validated |
-| `auth.registration.completed` | AuthService | Account + AuthCredential + ProfileContent created |
+| `auth.provider.authenticated` | AuthService | Provider ID token validated (Google or Apple) |
+| `auth.registration.completed` | AuthService | Account + AuthenticationIdentity + ProfileContent created |
 | `auth.session.created` | AuthService | Session record created |
 | `auth.session.refreshed` | AuthService | Refresh token rotated |
 | `auth.session.revoked` | AuthService | Session.revoked_at set |
@@ -220,6 +218,32 @@ Payloads must not contain:
 
 ---
 
+### Rendering Domain
+
+| Event | Publisher | Trigger |
+|---|---|---|
+| `profile.viewed` | Public profile rendering pipeline | After successful public profile presentation at `GET /{username}`; device_category determined using the platform device classification policy before emission |
+
+**Payload fields:** `account_id` (owning account), `device_category` (`desktop` \| `mobile` \| `tablet`).
+
+**Emission rules:**
+- Emitted only after a successful public profile response is delivered. Not emitted on rendering errors, suspended/deleted account responses, or cache failures.
+- Device category is determined by the public profile rendering pipeline using the device classification rules below before the event is emitted. Supported values: `desktop`, `mobile`, `tablet`.
+- Emission must not block profile rendering or response delivery. If emission fails, profile rendering must still succeed.
+- Repeated visits and page refreshes each produce a separate `profile.viewed` emission.
+
+**Device Classification Policy (V1):**
+
+The rendering pipeline classifies device category from the incoming HTTP request using the following ordered rules:
+
+1. **CDN device hint header** — If the CDN or reverse proxy forwards a device type header (e.g. `CF-Device-Type` from Cloudflare: values `mobile`, `tablet`, `desktop`), use that value first. Map `mobile` → `mobile`, `tablet` → `tablet`, `desktop` → `desktop`.
+2. **`User-Agent` header** — If no CDN header is present, parse the `User-Agent` string. Classify as `mobile` if the UA matches a recognized mobile pattern (e.g. contains `Mobile` and not `iPad`), `tablet` if it matches a recognized tablet pattern (e.g. `iPad` or `Android` without `Mobile`), otherwise `desktop`.
+3. **Fallback** — If neither source yields a classification, use `desktop`.
+
+The classification occurs once per request, before the `profile.viewed` event is emitted. Analytics never reclassifies device_category after the event is recorded.
+
+---
+
 ### Analytics Domain
 
 | Event | Publisher | Trigger |
@@ -239,6 +263,7 @@ The following handlers subscribe to events from other domains:
 | RenderingService cache invalidator | `profile.updated`, `profile.avatar.updated`, `profile.appearance.updated`, `profile.block.*` | Invalidates `profile:public:{username}` and `profile:content:{account_id}` in Redis |
 | Session revocation handler | `account.deleted` | Calls AuthService.revokeAllSessions for the deleted account (synchronous, in-process — satisfies the "at the moment of deletion" security requirement) |
 | Deletion cascade enqueuer | `account.deleted` | Enqueues `account.deletion.cascade` BullMQ job for durable cross-domain cascade cleanup |
+| Analytics profile view handler | `profile.viewed` | Calls AnalyticsService.recordProfileView({account_id, device_category}) with the values from the event payload; Analytics must not classify, recalculate, or infer device_category |
 | Analytics ingestion (BullMQ) | `out-link.clicked` payload via job | Calls AnalyticsService.recordLinkClick |
 
 ---
@@ -284,3 +309,6 @@ Implementation must not:
 - publish `social-account.*` events — Social Accounts domain emits no events
 - publish `out-link.enabled` or `out-link.disabled` — no is_enabled field exists
 - publish `qr_scan` analytics events — qr_scan is not a V1 analytics event type
+- publish `auth.otp.requested` or `auth.otp.verified` — Email OTP does not exist in V1
+- publish `auth.google.authenticated` — the canonical event is `auth.provider.authenticated` (covers both Google and Apple)
+- allow AnalyticsService to classify, recalculate, or infer `device_category` from any source — device_category is classified by the public profile rendering pipeline before `profile.viewed` is emitted and must be consumed as-is

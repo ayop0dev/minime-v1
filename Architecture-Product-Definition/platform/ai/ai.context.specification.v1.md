@@ -124,16 +124,20 @@ Historical facts describing platform activity.
 
 Examples:
 
-* profile published
-* suggestion accepted
-* suggestion rejected
+* profile updated
+* block added
+* connected account added
 * asset uploaded
 
 Events explain how the platform reached its current state.
 
+**V2 scope:** Suggestion accepted and suggestion rejected events are outside V1 scope. V1 emits no AI-specific events. Accepted suggestions produce ordinary Product Domain events (e.g. `profile.updated`).
+
 ---
 
-## User Decisions
+## User Decisions (V2)
+
+**V2 scope:** Persistent user decision context (accepted/rejected suggestion signals) is outside V1 scope. No suggestion history is stored in V1. The following describes intended future behavior.
 
 User decisions represent verified human preference.
 
@@ -239,8 +243,8 @@ Examples:
 Requires:
 
 * current bio
-* profile language
-* previous accepted bio suggestions
+* display name
+* previous accepted bio suggestions (V2 — not available in V1; use current bio only)
 
 Does not require:
 
@@ -256,7 +260,7 @@ Requires:
 
 * buttons
 * analytics
-* previous ordering decisions
+* previous ordering decisions (V2 — not available in V1; use current block order)
 
 Does not require:
 
@@ -301,9 +305,11 @@ If relevant information changes:
 
 * Product Data
 * Events
-* User Decisions
+* User Decisions (V2 — no suggestion history in V1; Product Data changes are the primary freshness trigger)
 
 the previous context should be considered stale.
+
+In V1, context freshness is determined by whether account state (profile, blocks, connected accounts) has changed since the last Analysis Session. The input hash captures this state; a changed hash triggers a new `Provider.execute(...)` call.
 
 Freshness should be determined by platform state rather than time alone.
 
@@ -316,7 +322,7 @@ Different context sources provide different levels of confidence.
 General priority:
 
 ```text
-User Decision
+User Decision (V2 — no suggestion history in V1)
 
 ↓
 
@@ -344,6 +350,8 @@ Generated AI Content
 ```
 
 When multiple sources disagree, higher-confidence sources should take precedence.
+
+In V1, the highest-confidence context source available is Canonical Product Data — the current profile, blocks, and connected accounts state.
 
 ---
 
@@ -458,7 +466,7 @@ The AI Context model follows these rules.
 3. Context is temporary.
 4. Context should remain minimal.
 5. Existing knowledge should be reused before generating new reasoning.
-6. User decisions are the highest-value contextual signal.
+6. User decisions are the highest-value contextual signal (V2 — no suggestion history in V1; Canonical Product Data is the highest-confidence V1 source).
 7. Freshness depends on platform state.
 8. Compression should preserve meaning while reducing cost.
 9. Context construction remains model-independent.

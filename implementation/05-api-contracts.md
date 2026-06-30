@@ -135,7 +135,7 @@ Response meta:
 
 ### Rate Limiting
 
-Authentication and OTP endpoints must be rate limited.
+Authentication endpoints must be rate limited.
 
 Violations return `429 Too Many Requests`.
 
@@ -191,117 +191,26 @@ No endpoint may bypass this flow.
 
 **Base path:** `/api/v1/auth`
 
-**Technology note:** Email OTP and Google Sign-In are the only V1 authentication methods. Phone OTP is not supported.
+**Technology note:** Google Sign-In and Apple Sign-In are the only V1 authentication methods. Email OTP and Phone OTP are not supported.
 
 ---
 
-### POST /api/v1/auth/otp/request
+### POST /api/v1/auth/provider
 
-Request an email OTP. Rate limited.
+Authenticate using an external identity provider assertion. Handles both sign-in (existing account) and initiates registration (new account). Supported V1 providers: `google`, `apple`.
 
 **Authentication:** Not required.
 
 **Request:**
-
-```json
-{ "email": "string" }
-```
-
-**Response:**
-
-```json
-{ "data": { "status": "otp-requested" } }
-```
-
-**Errors:** `400`, `422`, `429`
-
-**Rules:**
-- Validate email format.
-- Rate limit by identifier.
-- Do not reveal whether an Account exists.
-- Publish `auth.otp.requested` after OTP creation.
-- OTP format, lifetime, and resend cooldown: See `07-validation-rules.md` — Authentication constants.
-
----
-
-### POST /api/v1/auth/otp/verify
-
-Verify an email OTP. Returns a short-lived verification token.
-
-**Authentication:** Not required.
-
-**Request:**
-
-```json
-{ "email": "string", "code": "string" }
-```
-
-**Response:**
-
-```json
-{ "data": { "verification_token": "string", "expires_at": "datetime" } }
-```
-
-**Errors:** `400`, `401`, `422`, `429`
-
-**Rules:**
-- Validate OTP format and reject after maximum attempts: See `07-validation-rules.md` — Authentication constants.
-- Reject expired OTP records.
-- Reject invalid codes.
-- Hard delete OtpVerification record after successful verification.
-- Publish `auth.otp.verified`.
-- verification_token is short-lived and single-use.
-
----
-
-### POST /api/v1/auth/session
-
-Create a session using a verified email OTP token (sign-in flow for existing accounts).
-
-**Authentication:** Not required.
-
-**Request:**
-
-```json
-{ "email": "string", "verification_token": "string" }
-```
-
-**Response:**
 
 ```json
 {
-  "data": {
-    "access_token": "jwt",
-    "refresh_token": "string",
-    "account": { "id": "uuid", "username": "string" }
-  }
+  "provider": "google",
+  "provider_assertion": "string"
 }
 ```
 
-**Errors:** `400`, `401`, `422`, `429`
-
-**Rules:**
-- Validate verification_token.
-- Resolve the Account by email (via AuthCredential of type 'email').
-- If no Account exists for this email, return `404` — account must be registered first.
-- Create Session record.
-- Issue access token (short-lived JWT, not stored).
-- Issue refresh token (stored as hash in Session).
-- Publish `auth.session.created`.
-
----
-
-### POST /api/v1/auth/google
-
-Authenticate using a Google ID token. Handles both sign-in (existing account) and initiates registration (new account).
-
-**Authentication:** Not required.
-
-**Request:**
-
-```json
-{ "id_token": "string" }
-```
+`provider` must be a valid `AuthProvider` value (`google` or `apple`). `provider_assertion` is the ID token issued by the provider (e.g. Google ID token or Apple ID token).
 
 **Response (existing account):**
 
@@ -321,7 +230,7 @@ Authenticate using a Google ID token. Handles both sign-in (existing account) an
 {
   "data": {
     "needs_registration": true,
-    "google_token": "string"
+    "provider_assertion": "string"
   }
 }
 ```
@@ -329,17 +238,18 @@ Authenticate using a Google ID token. Handles both sign-in (existing account) an
 **Errors:** `400`, `401`, `422`, `429`
 
 **Rules:**
-- Backend must verify the ID token against Google's public keys.
-- Do not trust client-side token assertions.
-- If Account exists (AuthCredential of type 'google' with matching sub): create session, return tokens.
-- If no Account exists: return `needs_registration: true` with a short-lived google_token for registration.
-- Publish `auth.google.authenticated`.
+- Backend must verify the provider assertion against the provider's public keys. Do not trust client-side assertions.
+- `provider` must be validated against `AuthProvider`. Unknown provider values must be rejected with `400`.
+- If Account exists (AuthenticationIdentity with matching provider and provider_subject): create session, return tokens.
+- If no Account exists: return `needs_registration: true` with a short-lived provider_assertion for registration handoff.
+- Provider assertions must not be stored in PostgreSQL or Redis.
+- Publish `auth.provider.authenticated`.
 
 ---
 
-### POST /api/v1/auth/register
+### POST /api/v1/auth/register/provider
 
-Complete registration using a verified OTP token + username reservation.
+Complete registration using a provider assertion + username reservation. Supported V1 providers: `google`, `apple`.
 
 **Authentication:** Not required.
 
@@ -347,8 +257,8 @@ Complete registration using a verified OTP token + username reservation.
 
 ```json
 {
-  "email": "string",
-  "verification_token": "string",
+  "provider": "google",
+  "provider_assertion": "string",
   "reservation_id": "uuid"
 }
 ```
@@ -368,48 +278,10 @@ Complete registration using a verified OTP token + username reservation.
 **Errors:** `400`, `401`, `409`, `422`, `429`
 
 **Rules:**
-- Validate verification_token and reservation_id.
+- `provider` must be validated against `AuthProvider`. Unknown provider values must be rejected with `400`.
+- Validate provider_assertion (issued by POST /auth/provider).
 - Verify reservation exists and has not expired.
-- Create Account + AuthCredential (email) + ProfileContent in one transaction.
-- Delete UsernameReservation.
-- Create Session; issue tokens.
-- Publish `auth.registration.completed`.
-
----
-
-### POST /api/v1/auth/register/google
-
-Complete registration using Google authentication + username reservation.
-
-**Authentication:** Not required.
-
-**Request:**
-
-```json
-{
-  "google_token": "string",
-  "reservation_id": "uuid"
-}
-```
-
-**Response:**
-
-```json
-{
-  "data": {
-    "access_token": "jwt",
-    "refresh_token": "string",
-    "account": { "id": "uuid", "username": "string" }
-  }
-}
-```
-
-**Errors:** `400`, `401`, `409`, `422`, `429`
-
-**Rules:**
-- Validate google_token (issued by POST /auth/google).
-- Verify reservation exists and has not expired.
-- Create Account + AuthCredential (google) + ProfileContent in one transaction.
+- Create Account + AuthenticationIdentity (provider from payload) + ProfileContent in one transaction.
 - Delete UsernameReservation.
 - Create Session; issue tokens.
 - Publish `auth.registration.completed`.
@@ -517,10 +389,10 @@ List active sessions for the account.
 
 ### Authentication API Prohibitions
 
-- No `channel` field on OTP endpoints. Email is the only OTP channel in V1.
+- No Email OTP endpoints (`/auth/otp/request`, `/auth/otp/verify`, `/auth/session` with verification_token).
 - No phone OTP endpoints.
 - No SMS endpoints.
-- Never expose OTP codes in responses.
+- Never expose provider assertions beyond the registration handoff response.
 - Never expose refresh tokens except during session creation or rotation.
 
 ---

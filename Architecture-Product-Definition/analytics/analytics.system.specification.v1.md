@@ -102,7 +102,7 @@ Platform Events carries:
 
 ```text
 profile.viewed
-out_link.followed
+out-link.clicked
 ```
 
 Source domains emit these events.
@@ -145,18 +145,18 @@ This is an intentional V1 design decision.
 
 # Link Clicks
 
-A Link Click is represented by a canonical `out_link.followed` event.
+A Link Click is represented by a canonical `out-link.clicked` event.
 
 That event is emitted by the Out Link domain after the Out Link has been successfully followed by a visitor.
 
 Analytics does not decide whether the Out Link was followed.
 
-Analytics only records the emitted `out_link.followed` event.
+Analytics only records the emitted `out-link.clicked` event.
 
 Rule:
 
 ```text
-Every out_link.followed Event
+Every out-link.clicked Event
 =
 One Link Click
 ```

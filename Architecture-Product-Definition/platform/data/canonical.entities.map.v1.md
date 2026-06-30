@@ -269,13 +269,7 @@ platform/data/data.ownership.and.lifecycle.specification.v1.md
 
 ## Purpose
 
-Authentication Identity represents how an Account signs in or verifies access.
-
-Examples include:
-
-* email authentication
-* Google authentication
-* OTP verification state where applicable
+Authentication Identity represents a verified link between an Account and an external identity provider. V1 supports Google Sign-In and Apple Sign-In. Minime never authenticates users directly.
 
 ## Owner
 
@@ -285,16 +279,13 @@ Account
 
 ## Source of Truth
 
-The user provides or confirms authentication identifiers.
-
-The system owns verification state and security metadata.
+The user authenticates through the provider. The provider issues the verified identity. The system stores the resulting identity record.
 
 ## Data Category
 
 ```text
 User-Owned Data
 System-Owned Data
-Temporary Data
 ```
 
 ## Public Visibility
@@ -315,14 +306,12 @@ Authentication identity may be:
 ```text
 Created
 ↓
-Verified
+Active
 ↓
 Updated
 ↓
-Disabled / Removed
+Removed
 ```
-
-Temporary verification state must expire.
 
 ---
 

@@ -453,15 +453,17 @@ No restore system exists.
 Minime V1 uses:
 
 ```text
-Passwordless Authentication
+External Identity Provider
 ```
 
-Supported methods:
+Minime never authenticates users directly. Authentication is provided exclusively by supported external identity providers.
 
-* Email OTP
+Supported providers:
+
 * Google Sign-In
+* Apple Sign-In
 
-Passwords are not supported.
+Passwords, email OTP, and all other direct authentication methods are not supported.
 
 ---
 
@@ -469,11 +471,11 @@ Passwords are not supported.
 
 Every account must have exactly one primary authentication identity.
 
-Allowed types:
+Allowed providers:
 
 ```text
-email
 google
+apple
 ```
 
 ---
@@ -487,46 +489,6 @@ At Least One Authentication Method
 ```
 
 The last remaining authentication method cannot be removed.
-
----
-
-## Google Priority Rule
-
-Google is considered stronger than email authentication.
-
-If a user originally registers with:
-
-```text
-Email OTP
-```
-
-and later successfully verifies:
-
-```text
-Google Account
-```
-
-the Google account becomes the new primary authentication identity.
-
-Example:
-
-```text
-user@example.com
-↓
-Google Verified
-↓
-another@gmail.com
-```
-
-Result:
-
-```text
-Primary Identity
-=
-another@gmail.com
-```
-
-The previous primary identity is replaced.
 
 ---
 
@@ -554,49 +516,16 @@ require successful verification of the new identity before replacement.
 
 ---
 
-## Recovery Email
-
-All accounts must maintain a verified recovery email.
-
-The recovery email may be:
-
-* The primary email identity
-* A separate verified email
-
-**Enforcement:**
-
-For email-authenticated accounts: the registration email automatically satisfies the recovery email requirement. No additional action is required.
-
-For Google-authenticated accounts: a recovery email must be provided before the account may remove its only authentication identity. The Account Management System owns enforcement of this requirement at the point of authentication identity removal.
-
-The recovery email requirement is not a condition for basic account use, profile editing, or publishing. It becomes a gate only when an action would leave the account without any recovery path.
-
-Recovery emails are used for future account recovery capabilities.
-
-They are not login methods.
-
----
-
 # Session Policy
 
 ## Session Creation
 
-Successful authentication creates a user session.
+Successful provider authentication creates a user session.
 
-Examples:
-
-```text
-Email OTP
-↓
-Authenticated
-↓
-Session Created
-```
-
-or
+Example:
 
 ```text
-Google Sign-In
+Provider Sign-In (Google or Apple)
 ↓
 Authenticated
 ↓
@@ -617,22 +546,10 @@ Session duration:
 
 ## Session Expiry
 
-After session expiration:
-
-### Email Users
+After session expiration, the user must re-authenticate using their registered provider.
 
 ```text
-Request New OTP
-↓
-Authenticate
-↓
-New Session
-```
-
-### Google Users
-
-```text
-Continue With Google
+Provider Sign-In (Google or Apple)
 ↓
 Authenticate
 ↓

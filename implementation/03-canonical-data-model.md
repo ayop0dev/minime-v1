@@ -91,7 +91,6 @@ Special cases (no `deleted_at` column):
 - `OutLink` — uses `status` enum (`created | active | archived`) with `archived_at` timestamp. Archived records are hard-deleted after 90 days by a retention job.
 - `ConnectedAccount` — architecture specification requires Hard Delete.
 - `UsernameReservation` — temporary record, physically deleted on expiry.
-- `OtpVerification` — temporary record, physically deleted on expiry or use.
 - `AnalyticsEvent` — append-only, deleted only by retention jobs acting on `created_at`.
 
 Soft-deleted records are excluded from all queries by default.
@@ -131,7 +130,7 @@ Soft-deleted records are excluded from all queries by default.
 
 **Lifecycle:**
 
-- Created when registration completes (OTP verified or Google auth completed)
+- Created when registration completes (provider authentication completed)
 - `status = 'suspended'` — administrative action, data preserved, sessions invalidated
 - `status = 'deleted'` — user-initiated deletion, username permanently reserved
 
@@ -139,8 +138,18 @@ Soft-deleted records are excluded from all queries by default.
 
 - No `user_id` column (no User entity)
 - No `profile_id` column (no Profile entity)
-- No `email` or `phone` column (authentication identities live in `AuthCredential`)
+- No `email` or `phone` column (authentication identities live in `AuthenticationIdentity`)
 - No `display_name`, `bio`, or `avatar` columns (profile content lives in `ProfileContent`)
+
+**settings field structure:**
+
+```
+settings = {
+  gtm_container_id: string | null
+}
+```
+
+- `gtm_container_id`: Google Tag Manager container ID provided by the account owner (e.g. `"GTM-XXXXXX"`). Null or absent means no GTM snippet is injected for this account's public profile. No other settings fields are supported in V1.
 
 **qr_config field structure:**
 
@@ -164,13 +173,13 @@ qr_config = {
 
 ---
 
-### 2. AuthCredential
+### 2. AuthenticationIdentity
 
 **Owner:** Authentication domain
 
-**Purpose:** Represents a verified authentication identity linked to an Account. Supports Email and Google Sign-In. There are no passwords. There is no phone/SMS in V1.
+**Purpose:** Represents a verified external identity provider link to an Account. V1 supports Google and Apple. Minime never authenticates users directly.
 
-**Prisma model name:** `AuthCredential`
+**Prisma model name:** `AuthenticationIdentity`
 
 **Fields:**
 
@@ -178,62 +187,32 @@ qr_config = {
 |---|---|---|---|
 | `id` | UUID | PK, NOT NULL | UUID v7 |
 | `account_id` | UUID | NOT NULL, FK → Account.id | owning account |
-| `type` | AuthCredentialType | NOT NULL | email \| google |
-| `identifier` | TEXT | NOT NULL | email address (for email type) or Google `sub` (for google type) |
+| `provider` | AuthProvider | NOT NULL | google \| apple |
+| `provider_subject` | TEXT | NOT NULL | provider's canonical user identifier (Google `sub` or Apple `sub`) |
+| `provider_email` | TEXT | NULLABLE | email reported by provider; informational only; not the uniqueness key |
 | `created_at` | TIMESTAMP | NOT NULL | UTC |
+| `updated_at` | TIMESTAMP | NOT NULL | UTC |
 
 **Constraints:**
 
-- `UNIQUE (type, identifier)` — one Minime account per auth identity
+- `UNIQUE (provider, provider_subject)` — one Minime account per provider identity
 - FK `account_id → Account.id`
 
 **Indexes:**
 
-- `(type, identifier)` — auth lookup during sign-in
-- `account_id` — list credentials per account
+- `(provider, provider_subject)` — auth lookup during sign-in
+- `account_id` — list identities per account
 
 **Notes:**
 
-- One account may have one credential per type (email + google = max two credentials).
-- `identifier` for email type = normalized email address.
-- `identifier` for google type = Google `sub` claim from ID token.
-- No password hash. Authentication uses OTP for email type.
-- OAuth access tokens or refresh tokens are never stored here.
+- Uniqueness is keyed by `(provider, provider_subject)`, not by email.
+- `provider_email` is informational only. It may change over the provider identity's lifetime. It is never used as a uniqueness key or authentication identifier.
+- No password hash. No OTP. Authentication is completed externally by the provider.
+- Provider access tokens or refresh tokens are never stored here.
 
 ---
 
-### 3. OtpVerification
-
-**Owner:** Authentication domain
-
-**Purpose:** Temporary record for an in-progress OTP verification. Created when OTP is requested. Destroyed after successful verification or expiry.
-
-**Prisma model name:** `OtpVerification`
-
-**Fields:**
-
-| Field | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | UUID | PK, NOT NULL | UUID v7 |
-| `identifier` | TEXT | NOT NULL | email address (normalized) |
-| `code_hash` | TEXT | NOT NULL | hash of the 6-digit OTP code |
-| `expires_at` | TIMESTAMP | NOT NULL | created_at + 10 minutes |
-| `attempts` | INTEGER | NOT NULL, DEFAULT 0 | incremented on each failed verification, max 5 |
-| `created_at` | TIMESTAMP | NOT NULL | UTC |
-
-**Constraints:**
-
-- No FK to Account (the account may not exist yet during registration)
-
-**Indexes:**
-
-- `(identifier, expires_at)` — OTP lookup during verification
-
-**Deletion policy:** Hard Delete after successful verification or after expiry (cleanup job).
-
----
-
-### 4. Session
+### 3. Session
 
 **Owner:** Authentication domain
 
@@ -271,7 +250,7 @@ qr_config = {
 
 ---
 
-### 5. UsernameReservation
+### 4. UsernameReservation
 
 **Owner:** Username domain
 
@@ -307,7 +286,7 @@ qr_config = {
 
 ---
 
-### 6. ProfileContent
+### 5. ProfileContent
 
 **Owner:** Profile domain
 
@@ -363,9 +342,12 @@ appearance_config = {
 }
 ```
 
+- `selected_theme_id`: ID of the active theme from the immutable theme catalog at `packages/config/themes.ts`. Null means the default theme is used.
+- `customizations`: Reserved JSONB object for future theme-level overrides. **V1 scope:** `customizations` is always an empty object `{}` in V1. No customization fields are defined or accepted in V1. Unknown fields in this object must be ignored at read time and rejected at write time.
+
 ---
 
-### 7. Block
+### 6. Block
 
 **Owner:** Profile domain
 
@@ -383,6 +365,7 @@ appearance_config = {
 | `sort_order` | INTEGER | NOT NULL | ascending = display order |
 | `content` | JSONB | NOT NULL, DEFAULT '{}' | type-specific user-authored content |
 | `settings` | JSONB | NOT NULL, DEFAULT '{}' | type-specific user preferences |
+| `style_overrides` | JSONB | NULLABLE | optional explicit style overrides for this block; null or absent means full inheritance from the active Theme; inherited values and resolved styles must not be stored here |
 | `created_at` | TIMESTAMP | NOT NULL | UTC |
 | `updated_at` | TIMESTAMP | NOT NULL | UTC |
 | `deleted_at` | TIMESTAMP | NULLABLE | soft delete |
@@ -426,6 +409,22 @@ appearance_config = {
 | `title` | `{}` | No block-specific settings in V1 |
 | `textbox` | `{}` | No block-specific settings in V1 |
 
+**Style overrides field structure:**
+
+`style_overrides` is an optional JSONB field storing only the explicitly user-authored style keys for this block. It is distinct from `content` (user-authored data) and `settings` (type-specific user preferences).
+
+```
+style_overrides?: Record<string, unknown>
+```
+
+Rules:
+- Null or absent: the block inherits all style values from the active Theme. No override entry is written.
+- Present: only explicitly overridden keys are stored. Inherited values must not be stored.
+- Resolved styles (active Theme merged with block `style_overrides`) are computed at render time by the Renderer. Resolved styles must not be stored as canonical block data.
+- The Renderer must not read raw theme defaults or raw block overrides directly. It must consume only the resolved style object produced by combining the active Theme with the block's `style_overrides`.
+
+---
+
 **Instance rules:**
 
 | Category | Block Types | Limit |
@@ -437,7 +436,7 @@ appearance_config = {
 
 ---
 
-### 8. ImageAsset
+### 7. ImageAsset
 
 **Owner:** Profile domain
 
@@ -480,7 +479,7 @@ appearance_config = {
 
 ---
 
-### 9. ConnectedAccount
+### 8. ConnectedAccount
 
 **Owner:** Connected Accounts domain
 
@@ -525,7 +524,7 @@ appearance_config = {
 
 ---
 
-### 10. OutLink
+### 9. OutLink
 
 **Owner:** Out Links domain
 
@@ -582,7 +581,7 @@ appearance_config = {
 
 ---
 
-### 11. AnalyticsEvent
+### 10. AnalyticsEvent
 
 **Owner:** Analytics domain
 
@@ -635,11 +634,11 @@ suspended   — restricted by administrative action, data preserved
 deleted     — deleted by user, data preserved for audit integrity
 ```
 
-### AuthCredentialType
+### AuthProvider
 
 ```
-email       — email address + OTP authentication
-google      — Google Sign-In (ID token verification)
+google      — Google Sign-In (ID token verification against Google public keys)
+apple       — Apple Sign-In (ID token verification against Apple public keys)
 ```
 
 ### BlockType
@@ -708,7 +707,7 @@ archived    — out link is archived; hard-deleted after 90 days
 ```
 Account
   │
-  ├─── AuthCredential      (1:many, account_id FK)
+  ├─── AuthenticationIdentity (1:many, account_id FK)
   │
   ├─── Session             (1:many, account_id FK)
   │
@@ -726,8 +725,6 @@ Account
   └─── AnalyticsEvent      (reference only, no FK enforcement)
 
 UsernameReservation         (standalone, no Account FK — account does not exist yet)
-
-OtpVerification             (standalone, no Account FK — account may not exist yet)
 ```
 
 ---
@@ -743,7 +740,7 @@ The following exist in the architecture as catalog assets, processing logic, or 
 | SEO metadata | Computed at render time | Derived from `ProfileContent` + `Account` |
 | Integration configurations | Application config | Provider registration, loading rules |
 | Rendered profile | Cache (Redis) | Derived from stored entities, TTL ≤ 60s |
-| Block style / design tokens | Application code / theme definitions | Not user-owned persistence |
+| Resolved block styles | Computed at render time | Derived from active Theme merged with `Block.style_overrides`; resolved values must not be stored as canonical block data |
 | Access tokens | Not stored | Short-lived JWTs, not persisted |
 
 ---
@@ -763,9 +760,9 @@ The following operations require a database transaction:
 
 | Operation | Entities Involved |
 |---|---|
-| Complete registration | `UsernameReservation` delete + `Account` create + `AuthCredential` create + `ProfileContent` create |
+| Complete registration | `UsernameReservation` delete + `Account` create + `AuthenticationIdentity` create + `ProfileContent` create |
 | Block reorder | Multiple `Block` sort_order updates |
-| Account deletion | `AccountService.deleteAccount` executes two steps: (1) `Account.status = 'deleted'`; (2) publishes `account.deleted` event. Sessions are invalidated synchronously via in-process EventEmitter handler (AuthService.revokeAllSessions). A second EventEmitter handler enqueues the `account.deletion.cascade` BullMQ job for durable cross-domain cleanup. The cascade job executes in order: (1) collect out_link_ids via OutLinksService.getAccountOutLinkIds (read-only, before any deletion); (2) AnalyticsEvents hard-deleted (profile_view by account_id; link_click by out_link_ids) — analytics deleted before OutLinks to guarantee idempotency on retry; (3) OutLinks hard-deleted; (4) ProfileContent hard-deleted (includes `appearance_config` JSONB field); (5) Blocks hard-deleted; (6) ImageAssets hard-deleted (StoragePlatform.delete per asset); (7) ConnectedAccounts hard-deleted; (8) Binary avatar asset physically deleted; (9) QR storage asset deleted if `Account.qr_config.storage_key` is set (AccountService.deleteQrAsset). The Account record is retained permanently. No separate QR entity (`qr_config` is a JSONB field on Account, retained with Account). No AppearanceState entity (`appearance_config` is a JSONB field on ProfileContent, deleted with ProfileContent). No AI decisions entity in V1. Cascade order and idempotency rules: see `10-background-jobs.md` — Job 8. |
+| Account deletion | `AccountService.deleteAccount` executes two steps: (1) `Account.status = 'deleted'`; (2) publishes `account.deleted` event. Sessions are invalidated synchronously via in-process EventEmitter handler (AuthService.revokeAllSessions). A second EventEmitter handler enqueues the `account.deletion.cascade` BullMQ job for durable cross-domain cleanup. The cascade job executes in order: (1) collect out_link_ids via OutLinksService.getAccountOutLinkIds (read-only, before any deletion); (2) AnalyticsEvents hard-deleted (profile_view by account_id; link_click by out_link_ids) — analytics deleted before OutLinks to guarantee idempotency on retry; (3) OutLinks hard-deleted; (4) ProfileContent hard-deleted (includes `appearance_config` JSONB field); (5) Blocks hard-deleted; (6) ImageAssets hard-deleted (StoragePlatform.delete per asset); (7) ConnectedAccounts hard-deleted; (8) Binary avatar asset physically deleted; (9) QR storage asset deleted if `Account.qr_config.storage_key` is set (AccountService.deleteQrAsset). The Account record is retained permanently. No separate QR entity (`qr_config` is a JSONB field on Account, retained with Account). No AppearanceState entity (`appearance_config` is a JSONB field on ProfileContent, deleted with ProfileContent). No AI decisions entity in V1. Cascade order and idempotency rules: see `10-background-jobs.md` — Job 7. |
 
 ---
 
@@ -777,7 +774,7 @@ The following operations require a database transaction:
 | Repository | Owner Domain |
 |---|---|
 | AccountRepository | Account |
-| AuthRepository (OtpVerification, Session, AuthCredential) | Authentication |
+| AuthRepository (Session, AuthenticationIdentity) | Authentication |
 | UsernameReservationRepository | Username |
 | ProfileContentRepository | Profile |
 | BlockRepository | Profile |

@@ -198,7 +198,7 @@ Required
 Represents:
 
 ```text
-One out_link.followed Platform Event
+One out-link.clicked Platform Event
 ```
 
 Structure:

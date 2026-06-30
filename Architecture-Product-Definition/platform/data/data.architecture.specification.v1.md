@@ -209,7 +209,7 @@ Temporary Data exists only to complete a short-lived process.
 
 Examples include:
 
-* OTP verification state
+* username reservation state
 * upload processing state
 * temporary AI suggestion context
 * temporary preview state

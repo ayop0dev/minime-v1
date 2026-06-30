@@ -254,17 +254,9 @@ Authentication rules are defined by:
 authentication.policy.v1.md
 ```
 
-Supported methods:
+Minime V1 authentication is provider-based only. Minime never authenticates users directly. Minime accepts successful authentication assertions from supported external identity providers only.
 
-## Email OTP
-
-User enters email address.
-
-A one-time password is delivered by email.
-
-Successful OTP verification completes authentication.
-
----
+Supported providers:
 
 ## Google Sign-In
 
@@ -272,7 +264,17 @@ User authenticates using Google.
 
 Successful authentication is considered verified immediately.
 
-No additional OTP is required.
+No additional verification step is required.
+
+---
+
+## Apple Sign-In
+
+User authenticates using Apple.
+
+Successful authentication is considered verified immediately.
+
+No additional verification step is required.
 
 ---
 
@@ -281,31 +283,24 @@ No additional OTP is required.
 The following methods are out of scope:
 
 ```text
+Email OTP
 Phone Signup
 Phone OTP
 SMS Verification
 ```
 
-Reason:
-
-```text
-Variable Cost ≈ 0
-```
-
-is a core project requirement.
-
 ---
 
 # Account Approval
 
-Account approval occurs immediately after successful authentication.
+Account approval occurs immediately after successful provider authentication.
 
 Examples:
 
 ```text
 Username Reserved
 ↓
-Email OTP Verified
+Google Authentication
 ↓
 Approved User Account
 ```
@@ -315,7 +310,7 @@ or
 ```text
 Username Reserved
 ↓
-Google Authentication
+Apple Authentication
 ↓
 Approved User Account
 ```
@@ -394,11 +389,11 @@ Available
 ↓
 Create Username Reservation
 ↓
-Choose Authentication Method
+Choose Provider
 ↓
-Email OTP
-OR
 Google Sign-In
+OR
+Apple Sign-In
 ↓
 Successful Authentication
 ↓

@@ -14,7 +14,7 @@
 
 # Purpose
 
-This specification defines how the AI Platform recognizes, reuses, and evolves knowledge across the Minime platform.
+This specification defines how the AI Platform recognizes and reuses knowledge within Minime.
 
 Knowledge exists to reduce unnecessary reasoning.
 
@@ -23,6 +23,8 @@ The AI Platform should prefer using existing knowledge before generating new int
 Knowledge is an architectural optimization.
 
 It is not canonical Product Data.
+
+**V1 scope note:** In V1, the only AI capability is on-demand Analysis Sessions ("Analyze My Profile"). Cross-session knowledge accumulation (learning from accepted/rejected suggestions over time) is V2 scope. In V1, knowledge reuse occurs within a single Analysis Session context. The principles in this document describe the intended long-term knowledge architecture; sections describing persistent cross-session learning are explicitly marked as V2.
 
 ---
 
@@ -65,7 +67,9 @@ Repeated reasoning over identical information is wasteful.
 
 ---
 
-## User Decisions Create Strong Knowledge
+## User Decisions Create Strong Knowledge (V2)
+
+**V2 scope:** Persistent cross-session learning from accepted/rejected suggestions is outside V1. In V1, no suggestion history or decision signal is stored. The following describes intended future behavior.
 
 The strongest knowledge source is an explicit user decision.
 
@@ -76,11 +80,13 @@ Examples:
 * manual edit
 * explicit preference
 
-Human decisions have higher confidence than generated AI reasoning.
+Human decisions have higher confidence than generated AI reasoning. In V1, accepted suggestions become ordinary Product Domain data (e.g. saved to `ProfileContent.bio`); no separate decision record is created.
 
 ---
 
-## Knowledge Evolves
+## Knowledge Evolves (V2)
+
+**V2 scope:** Cross-session knowledge accumulation is outside V1. The following describes intended future behavior.
 
 Knowledge improves as additional evidence becomes available.
 
@@ -277,7 +283,9 @@ Freshness depends on platform state rather than elapsed time.
 
 ---
 
-# Knowledge Confidence
+# Knowledge Confidence (V2)
+
+**V2 scope:** Persistent confidence tracking based on accumulated user decisions across sessions is outside V1. The following describes intended future architecture.
 
 Every reusable knowledge item conceptually has confidence.
 
@@ -426,15 +434,15 @@ Knowledge is the primary mechanism for minimizing AI consumption.
 Preferred order:
 
 ```text
-Existing User Decision
+Existing User Decision (V2 — no suggestion history in V1)
 
 ↓
 
-Existing Knowledge
+Cached Analysis Result (input hash match within AI_CACHE_TTL_SECONDS)
 
 ↓
 
-Existing Context
+Existing Context (available Product Data)
 
 ↓
 
@@ -450,6 +458,8 @@ Large Model
 ```
 
 Every reused knowledge item avoids unnecessary inference.
+
+In V1, the primary cost optimization is input-hash caching: identical profile state within the cache TTL returns the previous Analysis Session result without a new `Provider.execute(...)` call.
 
 ---
 
@@ -490,16 +500,12 @@ The AI Knowledge model follows these rules.
 
 # Canonical Principle
 
-The AI Platform should accumulate understanding rather than repeatedly regenerate it.
-
-Every verified user decision, every confirmed pattern, and every stable relationship increases the platform's reusable knowledge.
-
-Intelligence becomes more efficient as knowledge grows.
-
 The objective is not to perform more AI reasoning.
 
 The objective is to need less AI reasoning over time.
 
-Knowledge is therefore the AI Platform's most valuable optimization layer.
+In V1, the primary mechanism for reducing unnecessary inference is input-hash caching: when the user's profile state has not changed since the last Analysis Session, the previous result is returned without executing a new `Provider.execute(...)` call.
 
-It allows Minime to deliver better intelligence with lower latency, lower cost, lower token consumption, and greater consistency while preserving the user's role as the single source of truth.
+Cross-session knowledge accumulation (learning from accepted and rejected suggestions) is V2 scope. In V2, every verified user decision and every confirmed pattern increases the platform's reusable knowledge, allowing Minime to deliver better intelligence with lower cost and greater consistency.
+
+The user always remains the final source of truth.

@@ -289,7 +289,7 @@ Visitor
 Create Account
     │
     ▼
-Verify Email
+Verify Identity
     │
     ▼
 Choose Username
@@ -340,7 +340,7 @@ Every domain should have a clear responsibility within the overall product lifec
 | Product Journey Stage      | Responsible Domain |
 | -------------------------- | ------------------ |
 | Create Account             | Account            |
-| Verify Email               | Authentication     |
+| Verify Identity               | Authentication     |
 | Choose Username            | Username           |
 | Add Social Accounts        | Social Accounts    |
 | Save Connected Accounts    | Connected Accounts |

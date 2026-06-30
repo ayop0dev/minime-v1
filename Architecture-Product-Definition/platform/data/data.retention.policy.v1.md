@@ -147,7 +147,7 @@ The record disappears automatically after serving its purpose.
 
 Typical examples:
 
-* OTP state
+* Username reservation state
 * temporary uploads
 * temporary previews
 
@@ -214,10 +214,10 @@ Temporary records should have clear expiration behavior.
 
 Examples include:
 
-* OTP verification
-* upload processing
-* temporary AI context
-* temporary preview state
+* Username reservation state
+* Upload processing
+* Temporary AI context
+* Temporary preview state
 
 Temporary records must not become permanent because cleanup was forgotten.
 

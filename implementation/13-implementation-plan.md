@@ -79,9 +79,9 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 
 **Deliverables:**
 
-- All 11 Prisma models defined exactly as specified in `03-canonical-data-model.md`:
-  `Account`, `AuthCredential`, `OtpVerification`, `Session`, `UsernameReservation`, `ProfileContent`, `Block`, `ImageAsset`, `ConnectedAccount`, `OutLink`, `AnalyticsEvent`
-- All enum types: `AccountStatus`, `AuthCredentialType`, `BlockType`, `SocialPlatform`, `AnalyticsEventType`, `DeviceCategory`, `OutLinkStatus`
+- All 10 Prisma models defined exactly as specified in `03-canonical-data-model.md`:
+  `Account`, `AuthenticationIdentity`, `Session`, `UsernameReservation`, `ProfileContent`, `Block`, `ImageAsset`, `ConnectedAccount`, `OutLink`, `AnalyticsEvent`
+- All enum types: `AccountStatus`, `AuthProvider`, `BlockType`, `SocialPlatform`, `AnalyticsEventType`, `DeviceCategory`, `OutLinkStatus`
 - All indexes and uniqueness constraints as specified
 - All repositories scaffolded (empty implementations, correct interfaces):
   `AccountRepository`, `AuthRepository`, `UsernameReservationRepository`, `ProfileContentRepository`, `BlockRepository`, `ImageAssetRepository`, `ConnectedAccountRepository`, `OutLinkRepository`, `AnalyticsEventRepository`
@@ -99,26 +99,25 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 
 **Deliverables:**
 
-- `AuthService` implemented: `requestOtp`, `verifyOtp`, `googleSignIn`, `refreshSession`, `logout`, `logoutAll`
-- Email OTP flow: OTP generation, synchronous email delivery via AuthEmailDelivery, hash storage, attempt tracking, OTP resend cooldown enforcement
-- `AuthEmailDelivery` adapter implemented; V1 default uses Resend SDK; configured via `EMAIL_PROVIDER_API_KEY` and `EMAIL_FROM_ADDRESS` environment variables
-- OTP delivery is synchronous: email sent before OtpVerification record is created; if delivery fails, no record is created and an error is returned
-- Google Sign-In flow: ID token backend verification against Google public keys
+- `AuthService` implemented: `verifyProviderAssertion`, `completeRegistrationWithProvider`, `refreshSession`, `logout`, `logoutAll`
+- Google Sign-In flow: provider assertion (Google ID token) verified against Google's public keys on the backend; `sub` claim extracted as `provider_subject`; `provider_email` extracted as informational only
+- Apple Sign-In flow: provider assertion (Apple ID token) verified against Apple's public keys on the backend; `sub` claim extracted as `provider_subject`; `provider_email` extracted as informational only
+- Provider assertion issued after successful verification (short-lived, single-use, used for registration handoff)
 - JWT access token issuance (short-lived, not stored)
 - Refresh token rotation (hash stored in Session, plain text discarded after issuance)
-- `AuthRepository` implemented: OtpVerification CRUD, Session CRUD, AuthCredential CRUD
-- API endpoints implemented: `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/google`, `POST /auth/session`, `POST /auth/logout`, `POST /auth/logout-all`
-- Scheduled jobs: `auth.otp.cleanup`, `auth.session.cleanup`
+- `AuthRepository` implemented: Session CRUD, AuthenticationIdentity CRUD
+- API endpoints implemented: `POST /auth/provider`, `POST /auth/register/provider`, `POST /auth/session`, `POST /auth/logout`, `POST /auth/logout-all`
+- Scheduled job: `auth.session.cleanup`
 - Auth guard (JWT validation middleware)
-- Events emitted: `auth.otp.requested`, `auth.otp.verified`, `auth.session.refreshed`
+- Events emitted: `auth.provider.authenticated`, `auth.registration.completed`, `auth.session.refreshed`
 
 **Security requirements (per `08-security-model.md`):**
-- OTP codes never stored plain-text, never logged, never in responses, never in BullMQ payloads
+- Provider assertions verified against provider public keys on the backend; client-side assertions never trusted
+- Provider assertions (registration handoff) never stored in the database or Redis; never logged
 - Refresh tokens never stored plain-text
-- After 5 failed attempts, OtpVerification treated as invalid
-- Google tokens never stored
+- Provider assertions must not appear in logs, events, or stored records
 
-**Complete when:** Full OTP and Google Sign-In flows succeed end-to-end; JWT guard rejects invalid tokens.
+**Complete when:** Google Sign-In and Apple Sign-In flows succeed end-to-end; registration via provider completes with AuthenticationIdentity created; JWT guard rejects invalid tokens.
 
 ---
 
@@ -192,12 +191,12 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 - `AnalyticsEventRepository` implemented (append-only)
 - API endpoints implemented: `GET /analytics/summary`, `GET /analytics/profile`, `GET /analytics/out-links/:id`
 - Scheduled job: `analytics.retention` (purge old AnalyticsEvent records)
-- `account.deletion.cascade` BullMQ job fully implemented: (1) OutLinksService.getAccountOutLinkIds (read-only), (2) AnalyticsService.deleteAccountAnalytics, (3) OutLinksService.deleteAccountOutLinks, (4) ProfileService.deleteAccountData, (5) ConnectedAccountsService.deleteAccountConnectedAccounts, (6) AccountService.deleteQrAsset; all steps idempotent; see `10-background-jobs.md` — Job 8
+- `account.deletion.cascade` BullMQ job fully implemented: (1) OutLinksService.getAccountOutLinkIds (read-only), (2) AnalyticsService.deleteAccountAnalytics, (3) OutLinksService.deleteAccountOutLinks, (4) ProfileService.deleteAccountData, (5) ConnectedAccountsService.deleteAccountConnectedAccounts, (6) AccountService.deleteQrAsset; all steps idempotent; see `10-background-jobs.md` — Job 7
 - Events emitted: `out-link.created`, `out-link.archived`, `out-link.clicked`
 
 **OutLink creation model:** OutLinks are system-created, not user-facing. `ProfileService.addBlock` calls `OutLinksService.createOutLink` after block persistence: one OutLink for `button` blocks; one OutLink per entry in `content.accounts` for `social_icons` blocks (each with its own `connected_account_id`). Each social icon renders with its own `/out/{public_id}` tracked link.
 
-**Cascade idempotency:** `account.deletion.cascade` Job 8 collects out_link_ids via `OutLinksService.getAccountOutLinkIds` (read-only) BEFORE any deletion. Analytics deletion runs before OutLink deletion. On retry, if OutLinks are already deleted, the read returns empty and analytics is a safe no-op. All cascade steps are idempotent; QR storage asset deletion is the final cascade step.
+**Cascade idempotency:** `account.deletion.cascade` Job 7 collects out_link_ids via `OutLinksService.getAccountOutLinkIds` (read-only) BEFORE any deletion. Analytics deletion runs before OutLink deletion. On retry, if OutLinks are already deleted, the read returns empty and analytics is a safe no-op. All cascade steps are idempotent; QR storage asset deletion is the final cascade step.
 
 **Complete when:** OutLink redirect flow works end-to-end; click recording is non-blocking; analytics events accumulate correctly; per-icon OutLink tracking works for social_icons blocks; account deletion cascade is fully idempotent.
 
@@ -230,16 +229,19 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 
 **Deliverables:**
 
-- `AiPlatform` service implemented: `suggestUsernames`, `suggestSocialSetup`, `suggestProfileImprovements`, `generateOnboardingGuidance`
+- `AIService` implemented with single `analyzeProfile(context)` method; delegates to `Provider.execute(prompt)` for inference
+- V1 AI scope: one capability — "Analyze My Profile" on-demand Analysis Session; no username suggestions, no social setup suggestions, no onboarding guidance
 - Provider configured via `AI_PROVIDER`, `AI_MODEL_ID`, `AI_API_KEY` environment variables; implementation defaults in `.env.example`
-- Prompt templates implemented in `packages/config/ai-prompts.ts`
-- Rate limiting enforced per account (`AI_MAX_REQUESTS_PER_MINUTE`); timeout enforced (`AI_TIMEOUT_MS`)
-- If `AI_API_KEY` is absent: all methods return empty arrays silently
-- AI suggestions surfaced in the relevant API flows (username selection during registration, social setup, profile onboarding)
-- AI failure handled gracefully: returns empty array, never throws to caller
-- No automatic AI mutations: all AI suggestions require explicit user confirmation before domain service mutation executes
+- Prompt template for profile analysis implemented in `packages/config/ai-prompts.ts`
+- Timeout enforced (`AI_TIMEOUT_MS`); timeout returns empty suggestions; never throws to caller
+- Input hash computed from Analysis Session context; identical context within `AI_CACHE_TTL_SECONDS` returns cached result without `Provider.execute` call
+- If `AI_API_KEY` is absent: `AIService.analyzeProfile` returns `{ suggestions: [] }` silently
+- AI surfaced in "Analyze My Profile" dashboard feature only; `AIService` is not invoked in registration, social setup, or onboarding flows
+- AI failure handled gracefully: returns empty suggestions, never throws to caller
+- No automatic AI mutations: all suggestions require explicit user confirmation before domain service mutation executes
+- `AIService` not invoked from background jobs, event handlers, or scheduled tasks
 
-**Complete when:** AI suggestions surface in registration and onboarding flows; AI failure does not interrupt any product domain operation; rate limiting and timeout are enforced.
+**Complete when:** "Analyze My Profile" returns profile improvement suggestions; AI failure does not interrupt any product domain operation; timeout and input-hash caching are enforced; AI is absent from all non-explicit request flows.
 
 ---
 
@@ -272,7 +274,7 @@ The plan covers: infrastructure, product domains (all 9), platform services (all
 - Docker images built for `apps/api` and `apps/web`
 - Nginx configured as reverse proxy: routes `/api/*` to NestJS, `/*` to Next.js, `/out/*` to NestJS
 - GitHub Actions deployment pipeline: build → test → push images → deploy
-- Production environment variables configured (database, Redis, Object Storage, Google OAuth, JWT secret, GTM container ID)
+- Production environment variables configured (database, Redis, Object Storage, Google OAuth, JWT secret)
 - Database migrations applied in CI before deployment
 - Health check endpoints active: `GET /health` (API), `GET /` (Web)
 - Monitoring and alerting configured for: API error rate, background job failure rate, cache miss rate, database connection pool
@@ -289,11 +291,12 @@ The following must hold across all phases. Violations must be corrected before t
 |---|---|
 | No `User`, `Profile`, `PublicProfile`, or `SocialAccount` entity | `03-canonical-data-model.md` |
 | No `profile_id` foreign key anywhere | `03-canonical-data-model.md` |
-| No password authentication, no phone OTP, no SMS | `08-security-model.md` |
+| No Email OTP, no password authentication, no phone OTP, no SMS | `08-security-model.md` |
+| Supported providers in V1: Google Sign-In and Apple Sign-In only | `authentication.policy.v1.md` |
 | No publishing workflow; save = visible within cache TTL | Architecture |
 | OutLinks are system-created, not user-API-created | `04-service-contracts.md` |
 | Account deletion is immediate, final, irreversible | `03-canonical-data-model.md` |
-| OTP codes never stored plain-text | `08-security-model.md` |
+| Provider assertions never stored in PostgreSQL or Redis | `08-security-model.md` |
 | Refresh tokens never stored plain-text | `08-security-model.md` |
 | Storage keys never exposed in API responses | `08-security-model.md` |
 | AI mutations require explicit user confirmation | `11-platform-services.md` |

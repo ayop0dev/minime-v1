@@ -261,6 +261,14 @@ type Account = {
   id: string;
   username: string;
   status: AccountStatus;
+  settings: {
+    gtm_container_id: string | null;
+  };
+  qr_config: {
+    color: string | null;
+    format: string | null;
+    storage_key: string | null;
+  };
   created_at: string;
   updated_at: string;
 };
@@ -332,6 +340,36 @@ active
 suspended
 deleted
 ```
+
+---
+
+## settings
+
+Account-level configuration managed by the account owner.
+
+V1 supported fields:
+
+```text
+gtm_container_id — Google Tag Manager container ID (string | null)
+```
+
+No other fields are supported in V1. The complete settings schema is defined in `implementation/03-canonical-data-model.md` and `implementation/07-validation-rules.md`.
+
+---
+
+## qr_config
+
+QR code configuration for the account's public profile QR.
+
+Fields:
+
+```text
+color        — QR foreground color (hex string | null for default)
+format       — Always 'svg' in V1
+storage_key  — Object Storage key for the generated QR SVG asset (null until first generated)
+```
+
+`storage_key` must never be exposed in API responses. The complete qr_config schema is defined in `implementation/03-canonical-data-model.md`.
 
 ---
 
@@ -432,11 +470,10 @@ Display Name
 Avatar
 Bio
 Contact Information
-Block Order
-Block References
+Appearance Configuration
 ```
 
-Profile Content is a module, not an entity root.
+Block ordering is managed via `Block.sort_order` on each individual Block record, not via a field on ProfileContent. Profile Content is a module, not an entity root.
 
 ---
 
@@ -617,6 +654,14 @@ type Account = {
   id: string;
   username: string;
   status: "active" | "suspended" | "deleted";
+  settings: {
+    gtm_container_id: string | null;
+  };
+  qr_config: {
+    color: string | null;
+    format: string | null;
+    storage_key: string | null;
+  };
   created_at: string;
   updated_at: string;
 };

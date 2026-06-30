@@ -88,13 +88,11 @@ Architecture should prefer reuse over regeneration.
 
 ## Suggestions Should Improve Over Time
 
-The AI Platform should improve suggestion quality by learning from user decisions.
+**V2 scope:** Persistent learning from user decisions (storing accepted/rejected signals to improve future suggestions) is outside V1 scope. No `AiDecision` or suggestion history entity exists in V1.
 
-Accepted suggestions strengthen confidence.
+In V1, accepted suggestions are written to the responsible Product Domain as ordinary domain data (e.g. an accepted bio suggestion is saved to `ProfileContent.bio`). No separate decision record is created. Rejected suggestions are discarded without persistence.
 
-Rejected suggestions reduce confidence.
-
-The user teaches the platform through explicit decisions.
+Future versions may introduce a suggestion history entity to enable confidence-based learning.
 
 ---
 
@@ -110,22 +108,24 @@ Architecture should optimize usefulness per inference.
 
 # Suggestion Lifecycle
 
+In V1, suggestions are generated through an on-demand Analysis Session triggered by the explicit "Analyze My Profile" user action. There are no implicit triggers and no background suggestion generation.
+
 Conceptually every suggestion follows the same lifecycle.
 
 ```text
-Task
+Explicit "Analyze My Profile" User Request
 
 ↓
 
-Context Constructed
+Context Constructed (profile, blocks, connected accounts, analytics summary)
 
 ↓
 
-Reasoning
+AIService.analyzeProfile → Provider.execute(...)
 
 ↓
 
-Suggestion Generated
+Suggestions Generated
 
 ↓
 
@@ -137,10 +137,10 @@ Accepted or Rejected
 
 ↓
 
-Platform Learns
+Platform Learns (V2 — no suggestion history persisted in V1)
 ```
 
-The lifecycle ends with the user's decision.
+The lifecycle ends with the user's decision. In V1, accepted suggestions are applied as ordinary domain mutations (e.g. accepted bio is saved to `ProfileContent.bio`). No suggestion record is created.
 
 ---
 
@@ -248,9 +248,7 @@ The suggestion itself never changes Product Data.
 
 The user explicitly rejects the suggestion.
 
-Rejection becomes valuable contextual knowledge.
-
-Future reasoning should avoid repeating identical unwanted suggestions.
+**V2 scope:** Rejection signals as persistent knowledge are outside V1 scope. In V1, rejections are discarded — no record is created. Future versions may persist rejection signals to avoid repeating unwanted suggestions.
 
 ---
 
@@ -260,15 +258,15 @@ The user takes no action.
 
 Ignoring a suggestion should not automatically be interpreted as rejection.
 
-Future implementations may determine how ignored suggestions are handled.
+**V2 scope:** Tracking ignored suggestion outcomes is outside V1 scope.
 
 ---
 
 # Learning From Decisions
 
-The AI Platform should reuse user decisions whenever appropriate.
+**V2 scope.** Persistent learning from user decisions is outside V1. V1 does not store suggestion history or decision signals. This section describes future intended behavior.
 
-Examples:
+In a future version, the AI Platform may reuse user decisions whenever appropriate:
 
 ```text
 User consistently prefers short biographies.
@@ -286,7 +284,7 @@ User repeatedly rejects emoji usage.
 Future content avoids unnecessary emojis.
 ```
 
-Learning occurs through observed user preference rather than autonomous behavior.
+Learning would occur through observed user preference rather than autonomous behavior. V1 does not implement this.
 
 ---
 
@@ -302,30 +300,15 @@ Approval transfers changes into Product Data through the responsible Product Dom
 
 # Relationship with Events
 
-Events may record:
+**V2 scope.** AI suggestion events (`ai.suggestion.generated`, `ai.suggestion.accepted`, `ai.suggestion.rejected`) are outside V1 scope. The V1 Event Catalog (`implementation/06-event-contracts.md`) does not include these events.
 
-* suggestion generated
-* suggestion accepted
-* suggestion rejected
-
-Events preserve history.
-
-Suggestions remain temporary.
+In V1, accepted suggestions produce ordinary Product Domain events (e.g. `profile.updated` when an accepted bio suggestion is saved). No AI-specific event is emitted.
 
 ---
 
 # Relationship with Analytics
 
-Analytics may evaluate:
-
-* acceptance rate
-* rejection rate
-* ignored suggestions
-* effectiveness trends
-
-Analytics measures suggestion performance.
-
-Analytics does not approve suggestions.
+**V2 scope.** Analytics measurement of suggestion performance (acceptance rate, rejection rate, ignored suggestions, effectiveness trends) is outside V1 scope. The V1 Analytics System consumes only `profile.viewed` and `out-link.clicked` events (`implementation/06-event-contracts.md`). No suggestion analytics exist in V1.
 
 ---
 
@@ -358,15 +341,11 @@ Model selection remains an implementation decision.
 The AI Platform minimizes suggestion cost by following this order.
 
 ```text
-Existing User Decision
+Existing Suggestion (cached/in-session)
 
 ↓
 
-Existing Suggestion
-
-↓
-
-Existing Context
+Existing Context (available Product Data)
 
 ↓
 
@@ -383,7 +362,7 @@ Large Model
 
 Escalation occurs only when necessary.
 
-Previously generated knowledge should always be reused before generating new intelligence.
+**Note:** "Existing User Decision" as a reuse source is outside V1 scope (no suggestion history is persisted in V1). Cached or in-session suggestions may still be reused within a single session.
 
 ---
 
@@ -441,7 +420,7 @@ The AI Suggestions model follows these rules.
 2. Suggestions never execute actions.
 3. Suggestions depend on context.
 4. User approval is required for Product changes.
-5. User decisions improve future suggestions.
+5. User decisions improve future suggestions (V2 — no suggestion history persisted in V1).
 6. Existing knowledge should be reused before generating new reasoning.
 7. Suggestions should explain their value whenever practical.
 8. AI consumption should be minimized through reuse.
