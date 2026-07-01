@@ -7,6 +7,10 @@
 **Domain:** Profile
 **Architecture Status:** Frozen
 
+## V1 Scope Notice
+
+In V1, Appearance State stores exactly one user-controlled value: `selected_theme_id`. Every reference below to "user customization," "visual overrides," or "appearance preferences" beyond Theme selection is **V2 Scope** — see `themes/theme.customization.specification.v1.md` and `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` (APD-011). `appearance_config.customizations` is always `{}` in V1 (`implementation/03-canonical-data-model.md`).
+
 ---
 
 # 1. Purpose

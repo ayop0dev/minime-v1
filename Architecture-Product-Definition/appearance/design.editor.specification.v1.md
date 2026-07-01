@@ -7,6 +7,10 @@
 **Domain:** Profile
 **Architecture Status:** Frozen
 
+## V1 Scope Notice
+
+The Design editor's V1 surface for Appearance is **Theme selection only**: browsing the Theme Catalog and selecting one Theme. Every color, typography, spacing, radius, border, shadow, or animation control described below is **V2 Scope** — see `themes/theme.customization.specification.v1.md` and `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` (APD-011). Sections below are marked accordingly. The Design editor also exposes block-level style overrides in V1 (a separate, already-approved mechanism — see `block-styling/`), which is distinct from the theme-wide customization controls described here.
+
 ---
 
 # 1. Purpose
@@ -77,14 +81,15 @@ The Design Editor is never responsible for:
 
 The Design Editor may expose capabilities including:
 
-* Theme selection
-* Theme customization
-* Color customization
-* Typography selection
-* Spacing configuration
-* Visual option selection
-* Appearance reset
-* Appearance preview
+* Theme selection (V1)
+* Appearance preview during Theme browsing, transient UI state only (V1)
+* Block-level style overrides, per the closed `block-styling/` catalog (V1 — separate mechanism, see "V1 Scope Notice" above)
+* Theme customization (V2 Scope)
+* Color customization (V2 Scope)
+* Typography selection (V2 Scope)
+* Spacing configuration (V2 Scope)
+* Visual option selection (V2 Scope)
+* Appearance reset (V2 Scope)
 
 The specific capabilities available are determined by the Appearance system and Theme constraints.
 

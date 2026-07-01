@@ -594,3 +594,123 @@ There are no draft, unpublished, scheduled, preview, or separate live profile st
 * Every domain owns one primary specification.
 * Cross-domain coupling should remain minimal.
 * The Product Map is the practical architectural overview of the product.
+
+---
+
+## Decision Hierarchy
+
+This section defines the canonical precedence order for every decision made about Minime. When two documents at different layers appear to disagree, the higher layer wins, and the lower layer must be corrected to match it — never the reverse.
+
+```text
+Product Vision
+    ↓
+Architecture  (Architecture-Product-Definition/, including this Map and ARCHITECTURE_PR_APPROVAL_DECISIONS.md)
+    ↓
+Approved APD Decisions  (ARCHITECTURE_PR_APPROVAL_DECISIONS.md — implementation-enabling clarifications only)
+    ↓
+Implementation Specifications  (implementation/)
+    ↓
+Code
+    ↓
+Deployment Configuration
+```
+
+Rules that follow from this hierarchy:
+
+- **Product Vision** justifies the existence of a domain or capability. It never specifies mechanism.
+- **Architecture** (this Map, and every document under `Architecture-Product-Definition/`) is the single source of truth for what the system is, its domain boundaries, and its permanent invariants. Architecture is authoritative over Implementation.
+- **Approved APD Decisions** sit between Architecture and Implementation. An APD entry may adopt an Implementation decision into Architecture (promoting it upward) or correct Architecture to match Implementation when Implementation is demonstrably the better engineering decision — but every such adoption must be recorded in `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` before or alongside the change, per `implementation/README.md` — "Post-Freeze Clarification Policy." An unrecorded divergence is not a valid APD-level decision, regardless of where else it appears.
+- **Implementation Specifications** (`implementation/`) operationalize Architecture. They must never silently redefine Architecture. If an Implementation document contains a better engineering decision than the frozen Architecture, the correct action is to promote that decision into Architecture (via a new APD entry and, where the contradiction is severe, a direct edit to the relevant Architecture document) — never to leave Architecture and Implementation silently disagreeing, and never to weaken the better Implementation decision merely to preserve an obsolete Architecture document.
+- **Code** must match Implementation Specifications exactly. Any code-level deviation from an Implementation Specification is a bug, not a new source of truth.
+- **Deployment Configuration** (environment variables, infrastructure, CI/CD) supplies runtime values only where an owning specification has explicitly declared a value configurable (see `platform.architecture.specification.v1.md` — "Configuration Authority"). It never creates business rules.
+
+Every engineer, at every layer, must be able to answer: "which layer wins here?" — and the answer is always: the higher one in this list.
+
+### Conflict Resolution Rule (Phase A.5)
+
+**No lower architectural layer may silently redefine any higher layer.**
+
+This is absolute. Implementation may never become the canonical owner of an architectural concept merely by describing it first, describing it more precisely, or describing it more currently than Architecture does. If Implementation and Architecture disagree, that disagreement is always a defect to be resolved — never a tolerated dual-authority state, and never resolved by treating Implementation as authoritative in place of Architecture.
+
+### Required Workflow When Implementation Discovers a Better Engineering Solution
+
+There is exactly one valid path from "Implementation knows something Architecture doesn't yet say" to "the repository is consistent again." No alternative workflow may exist.
+
+```text
+Implementation discovers a better engineering solution
+        ↓
+Create an APD entry in ARCHITECTURE_PR_APPROVAL_DECISIONS.md
+   (states the reason, scope, and why it is not a redesign)
+        ↓
+Update the Architecture document(s) that own the affected concept
+   (per the Canonical Ownership table below — the Architecture document
+   is corrected in the same change as the APD entry, never left to drift)
+        ↓
+Implementation remains synchronized
+   (implementation/ already matches, or is confirmed unchanged, since the
+   direction of correction was Architecture adopting Implementation's decision)
+        ↓
+Code follows the updated Architecture
+   (via the already-synchronized Implementation Specification — no direct
+   code change is triggered by this workflow alone unless Implementation
+   itself required a correction, which is a separate, explicit step)
+```
+
+Skipping any step in this workflow — in particular, changing Implementation behavior without an APD entry, or leaving an APD entry unaccompanied by the corresponding Architecture update — reintroduces exactly the class of silent Architecture Drift that Phase A was created to eliminate. See `ARCHITECTURE_LINTER_RULES.md` — "Missing APD" and "Implementation Drift" for the automated checks that detect a skipped step.
+
+---
+
+## Canonical Ownership
+
+Every architectural concept has exactly one owner document, **and that owner document is always an Architecture document** (a file under `Architecture-Product-Definition/`, this Map, or `ARCHITECTURE_PR_APPROVAL_DECISIONS.md`). An Implementation document (`implementation/`) may never be listed as the Owner of an architectural concept — it may only be listed as an **Operational Specification**, i.e. the document that carries the concrete mechanism, field-level detail, exact numeric values, or API contract that operationalizes what the Owner document already establishes as a rule. This distinction is load-bearing: it is what "Implementation must never silently redefine Architecture" means in practice, applied table-row by table-row.
+
+**Correction record (Phase A.5 — G-01):** Two rows in this table, as originally introduced in Phase A, listed an `implementation/` document as the "Canonical Owner Document" (Session lifecycle/token model, and Public profile cache strategy). This was itself a violation of the governing principle the table exists to enforce, discovered during the Phase A.5 governance-hardening audit. Both rows are corrected below: the Architecture document that already states the governing rule (rewritten during Phase A to carry that rule) is now the listed Owner, and the `implementation/` document is demoted to Operational Specification. No behavior changed — only which document is recorded as authoritative.
+
+All other documents that mention a concept in this table must reference its Owner document rather than redefining the rule. This table exists specifically to prevent the class of contradiction found during the Phase A architecture-synchronization audit, where the same concept (a session model, a cache invalidation strategy, an indexing eligibility rule, a deletion cascade order, a customization capability) was described differently in two places because no single document was designated as authoritative.
+
+| Concept | Owner (Architecture) | Operational Specification (Implementation) | Notes |
+|---|---|---|---|
+| Session lifecycle, token model, session management | `account-management/minime.account.management.system.specification.v1.md` ("Session Policy") | `implementation/08-security-model.md` ("Session Security," "Token Rules") | The Owner document states the rule (token types, TTLs, session management capabilities). The Operational Specification carries the exact cryptographic/algorithmic detail (JWT signing, hash storage). Neither may be updated without the other being checked for consistency (see APD-012). |
+| Theme selection vs. Theme customization scope | `appearance/themes/theme.customization.specification.v1.md` ("V1 Scope Notice") | `implementation/03-canonical-data-model.md` (`ProfileContent.appearance_config.customizations`) | The Owner document is the single place that states what is V1 vs. V2 Scope for customization. Every other Appearance document defers to it (see APD-011). |
+| Block-level style overrides | `block-styling/block-style.model.specification.v1.md` (closed property catalog) | `implementation/07-validation-rules.md` (`style_overrides` validation) | Distinct from theme-wide customization above; never conflate the two. |
+| Public profile cache strategy | `public-profile/public-profile.cache.policy.v1.md` (two-layer model, Smart Cache Invalidation) | `implementation/09-caching-strategy.md` ("Cache Invalidation," "Freshness Budget Propagation") | The Owner document states the strategy and the invalidation principle. The Operational Specification carries the exact Redis key names, TTL arithmetic, and the full mutating-operation trigger list (see APD-014). |
+| SEO indexing eligibility | `seo/seo.indexing.policy.v1.md` | `implementation/12-seo-and-integrations.md` ("SEO Implementation Rules") | Keyed exclusively on `Account.status`; no other document may introduce a competing visibility concept (see APD-013). |
+| Account deletion cascade order and rationale | `account/account.deletion.policy.v1.md` (Section 4) | `implementation/10-background-jobs.md` (Job 7) | The Owner document carries the idempotency rationale at its source. The Operational Specification must match this section's step order exactly (see APD-015). |
+| Canonical entity map (what persists, who owns it) | `platform/data/canonical.entities.map.v1.md` | `implementation/03-canonical-data-model.md` (field-level realization) | The Operational Specification must never introduce an entity absent from the Owner document without an APD entry. |
+| Post-freeze implementation-enabling decisions | `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` | — (this registry sits between Architecture and Implementation in the Decision Hierarchy; it has no separate Operational Specification) | The only valid registry for entity/job/deployable/repository-contract/transaction-coordinator/advisory-lock/unique-index/security-boundary additions. |
+| Product domain boundaries and responsibilities | This document (`MINIME_V1_PRODUCT_ARCHITECTURE_MAP.md`) — "Product Domains," "Domain Coverage" | `implementation/02-repository-structure.md` (folder-to-domain mapping) | No other document may introduce, rename, merge, or split a domain independently. |
+
+If a future document needs to describe one of these concepts, it must reference the Owner document by name rather than restating the rule. If a document must describe a concept not yet listed here, the Architecture document describing it becomes the de facto canonical Owner and should be added to this table — as Owner, never as Operational Specification — in the same change. An `implementation/` document must never be added to this table as an Owner under any circumstance; see `ARCHITECTURE_LINTER_RULES.md` — "Missing Canonical Owner" and "Implementation Drift" for the automated check.
+
+---
+
+## Document Version Status Policy
+
+Every document in `Architecture-Product-Definition/` and `implementation/` must declare exactly one of the following statuses, and must never mix lifecycle states within itself (e.g. a document must never describe both current and removed behavior without explicitly labeling which is which):
+
+| Status | Meaning |
+|---|---|
+| **Draft** | Under active discussion. Not yet authoritative. Must not be relied upon for implementation. |
+| **Approved** | Reviewed and accepted as correct for the version it targets. Equivalent to **Frozen** for all V1 architecture documents already carrying a `Status: Approved` header as of this policy's introduction — no retroactive relabeling of existing "Approved" documents is required by this policy alone. |
+| **Frozen** | Approved and explicitly locked against further change except through the Post-Freeze Clarification Policy and the APD registry. This is the intended steady state for `Architecture-Product-Definition/` documents. |
+| **Deprecated** | Superseded in part; still contains some currently-accurate content but also describes behavior that no longer applies. Must state, at the point of deprecation, exactly which sections are obsolete and what replaces them. |
+| **Superseded** | Entirely replaced by a named successor document. Retained only for historical traceability; must link to its successor and must not be used as an implementation reference. |
+| **Archived** | Retired from the active specification set. Retained for historical record only. |
+
+**Mixed lifecycle states are forbidden.** A document must never simultaneously describe a capability as both "Supported" and "Not Supported" for the same version without one of those statements being an error to correct (this was the root cause of the Theme Customization, Session Model, SEO Indexing, and Cache Invalidation contradictions resolved in Phase A — see `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` APD-011 through APD-015). Every deferred capability must be explicitly marked **V2 Scope** at the point it is mentioned — never left ambiguous as to which version it belongs to.
+
+Documents updated during Phase A (see `PHASE_A_ARCHITECTURE_SYNCHRONIZATION_REPORT.md`) now carry explicit V1/V2 Scope notices at every point of prior ambiguity. Extending this explicit status-per-section labeling to every remaining document in the repository is a recommended follow-up (Phase B), not a requirement of this policy's introduction.
+
+---
+
+## Post-Freeze Approved Engineering Decisions
+
+Since this architecture was frozen, a set of implementation-enabling engineering decisions has been approved to make this Product Map concrete enough to build against (e.g. specific entities, background jobs, deployables, and security boundaries required by `implementation/`). These decisions do not redesign this architecture and do not change anything stated above.
+
+The canonical, authoritative registry of those decisions is:
+
+```
+ARCHITECTURE_PR_APPROVAL_DECISIONS.md
+```
+
+at the repository root. This Product Map does not duplicate that registry's content — refer to it directly for the full list of approved decisions, their scope, and their non-goals.

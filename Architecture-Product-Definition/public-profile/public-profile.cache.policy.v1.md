@@ -4,6 +4,8 @@
 
 Approved
 
+**Governing decision:** This policy previously prohibited "Smart Cache Invalidation" and stated that profile updates rely on TTL expiration alone. The approved implementation (`implementation/09-caching-strategy.md`) requires immediate, mutation-triggered invalidation of the application-level cache after every profile-mutating operation, which is a stronger freshness guarantee than TTL-only expiration. This policy has been updated to adopt that behavior as the official V1 cache strategy. See `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` — APD-014.
+
 ---
 
 # Purpose
@@ -16,18 +18,21 @@ The goal is to improve response speed and reduce infrastructure load while keepi
 
 # Cache Strategy
 
-V1 uses:
+V1 uses two independent cache layers:
 
 ```text
-Basic Edge Cache
+Layer 1 — Edge Cache (CDN / Reverse Proxy)   — public profile HTTP responses
+Layer 2 — Application Cache (Redis)          — assembled profile content, invalidated on mutation
 ```
+
+Layer 2 is invalidated immediately (Smart Cache Invalidation) after every successful profile-mutating write. Layer 1 relies on TTL expiration only, bounded by the `Cache-Control: max-age` value computed from Layer 2's remaining TTL (see "Freshness Expectations" below) — the edge layer never receives an explicit purge call in V1.
 
 The platform does not use:
 
 ```text
 No Cache
 
-Full Profile Cache
+Full Profile Cache (a cache with no TTL and no invalidation)
 
 Static Profile Generation
 ```
@@ -116,21 +121,21 @@ Cache Again
 
 # Profile Updates
 
-When profile content changes:
+When profile content changes, the application cache (Layer 2 — Redis) is invalidated immediately, synchronously, as part of the same request that performed the mutation, after persistence succeeds:
 
 ```text
-Immediate Cache Purge
+Profile Mutation Persisted
+↓
+Invalidate profile:public:{username} and profile:content:{account_id} (Redis)
+↓
+Next Read Recomputes From PostgreSQL
 ```
 
-is not required in V1.
+This is Smart Cache Invalidation: invalidation is triggered by the specific mutation, not solely by elapsed time. The full list of mutating operations that trigger invalidation is defined in `implementation/09-caching-strategy.md` — "Cache Invalidation" (covers `updateProfileContent`, `uploadAvatar`, `updateAppearance`, `addBlock`, `updateBlock`, `deleteBlock`, `reorderBlocks`, all `ConnectedAccount` mutations, and `gtm_container_id` changes).
 
-The platform relies on:
+The edge cache (Layer 1) is **not** explicitly purged on mutation in V1 — it continues to rely on TTL expiration, bounded by the shared freshness budget described below. Explicit edge purge (a CDN-level API call) remains out of V1 scope; only the application-level Redis cache is actively invalidated.
 
-```text
-Short TTL Expiration
-```
-
-to refresh content naturally.
+Cache invalidation failure (e.g. Redis unavailable) must never block or fail the mutation itself — the write to PostgreSQL is the operation of record, and invalidation is a best-effort follow-up step. See `implementation/09-caching-strategy.md` — "Cache Failure Behavior."
 
 ---
 
@@ -206,7 +211,7 @@ Caching must never permanently store Account ownership decisions.
 
 Access Policy decisions remain the source of truth.
 
-Content changes are reflected in cached responses after TTL expiration.
+Content changes are reflected in cached responses immediately for Layer 2 (Smart Cache Invalidation) and within the shared freshness budget for Layer 1 (TTL expiration, bounded to the remaining Layer 2 TTL at the moment of each response — see `implementation/09-caching-strategy.md` — "Freshness Budget Propagation").
 
 ---
 
@@ -233,25 +238,22 @@ as independent cache entities in V1.
 Supported:
 
 ```text
-Basic Edge Cache
-
-Short TTL
-
+Edge Cache (Layer 1), TTL-bound
+Application Cache (Layer 2, Redis), TTL-bound
+Smart Cache Invalidation of Layer 2 on profile mutation
+Shared freshness budget across both layers (see implementation/09-caching-strategy.md)
 Public Profile Caching
-
 404 Caching
 ```
 
 Not Supported:
 
 ```text
-Full Profile Cache
+Full Profile Cache (cache with no TTL)
 
 Static Generation
 
-Manual Cache Purge
-
-Smart Cache Invalidation
+Manual/explicit Edge (CDN) Purge — Layer 1 relies on TTL only, never an explicit purge call
 
 Cache Versioning
 ```

@@ -1,5 +1,13 @@
 # Theme Definition Specification V1
 
+## Status
+
+**V1 Status:** The Theme Definition catalog structure described in this document (Metadata, Background, Colors, Typography, Spacing, Radius, Borders, Shadows, Animations, Block Defaults, Constraints) is real, approved V1 behavior — every Theme in the V1 catalog has these fields as fixed platform-provided defaults, consumed during rendering.
+
+**What is NOT V1:** User customization of any of these values (the "Theme Identity Rule" example below) is **V2 Scope**. In V1, `appearance_config.customizations` is always `{}` — see `theme.customization.specification.v1.md` for the full V2 customization design and the governing decision (`ARCHITECTURE_PR_APPROVAL_DECISIONS.md` — APD-011). This document's references to "customization" describe the V2 target design unless stated otherwise.
+
+---
+
 ## Context
 
 A Theme Definition is a catalog asset within the Theme Library.
@@ -10,7 +18,7 @@ A Theme Definition describes a reusable visual preset that profiles may select.
 
 It is platform-managed and immutable.
 
-The Appearance system stores the selected Theme reference and customization values as the Appearance State.
+The Appearance system stores the selected Theme reference (V1) and, in a future version, customization values (V2 Scope) as the Appearance State.
 
 ---
 
@@ -254,7 +262,7 @@ Constraint details are defined in: theme.constraints.specification.v1.md
 
 ---
 
-## Theme Identity Rule
+## Theme Identity Rule (V2 Scope)
 
 Theme identity remains unchanged when users customize their Appearance State.
 
@@ -267,6 +275,8 @@ Result: Profile still references Theme = Minimal (with customized values in Appe
 ```
 
 Customization does not create a new Theme Definition.
+
+**V1 behavior:** there is no customization to apply in V1. Selecting a Theme sets `selected_theme_id` only; the Theme's own defaults are used unmodified. The identity-survival rule above becomes directly applicable once V2 customization is implemented.
 
 ---
 
@@ -281,7 +291,7 @@ Rule:
 ```text
 Theme Definition (defaults)
         ↓
-Appearance State (resolved with customization)
+Appearance State (V1: defaults only — V2: resolved with customization)
         ↓
 Renderer
 ```
@@ -290,15 +300,13 @@ The Theme Definition never communicates directly with the Renderer.
 
 ---
 
-## V1 Flag — Block-Level Override Model
+## Block-Level Style Overrides — Resolved, Separate From This Document (V1)
 
-The current model includes a concept of block instance visual overrides — values stored on individual blocks that override Theme defaults.
+An earlier draft of this document flagged block instance visual overrides as pending a separate V1 Appearance review before being introduced or expanded.
 
-This area requires a separate V1 Appearance review before any expansion.
+That review is complete. Block-level style overrides are approved, in-scope V1 behavior, governed entirely by the `block-styling/` specification set (`block-style.model.specification.v1.md`, `block-style.constraints.specification.v1.md`, `block-style.inheritance.specification.v1.md`, `block-style.override.specification.v1.md`, `block-style.resolution.specification.v1.md`) and `implementation/07-validation-rules.md`.
 
-Do not introduce block-level visual override controls in V1 without completing that review.
-
-This flag does not prevent the existing Block Defaults structure from being used as-is.
+Block-level style overrides are a distinct mechanism from the theme-wide customization described in `theme.customization.specification.v1.md` (V2 Scope). A block override changes one property on one block instance; theme-wide customization (V2) would change a value once for every block that inherits it. The existing Block Defaults structure in this document (the Theme's own per-block-type defaults) is used as-is in V1 and is unaffected by either mechanism.
 
 ---
 
@@ -341,11 +349,19 @@ Theme Definition Is Platform-Managed And Immutable
 
 Theme Definition Provides Defaults Only
 
-Appearance State Stores Selection And Customization
-
-Theme Identity Survives Customization
+Appearance State Stores Theme Selection (selected_theme_id) In V1
 
 Theme Definition Does Not Own Profile Content
 
 Renderer Consumes Appearance State, Not Theme Definition Directly
+
+Block-Level Style Overrides Are A Separate, Already-Approved V1 Capability — See block-styling/
+```
+
+## V2 Principles (Target Design, Not Yet Implemented)
+
+```text
+Appearance State Also Stores Theme-Wide Customization Values
+
+Theme Identity Survives Customization
 ```

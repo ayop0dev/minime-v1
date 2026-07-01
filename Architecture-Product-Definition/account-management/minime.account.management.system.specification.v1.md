@@ -518,9 +518,11 @@ There is no "replace an identity" operation. `provider_subject` is immutable onc
 
 # Session Policy
 
+**Governing decision:** This section was updated to adopt the session model already approved and implemented in `implementation/08-security-model.md`. The obsolete flat "7-day session, no session management" model previously described here was never implemented and directly contradicted the approved implementation. See `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` — APD-012.
+
 ## Session Creation
 
-Successful provider authentication creates a user session.
+Successful provider authentication creates a user session, composed of a short-lived access token and a longer-lived, rotatable refresh token.
 
 Example:
 
@@ -529,26 +531,29 @@ Provider Sign-In (Google or Apple)
 ↓
 Authenticated
 ↓
-Session Created
+Session Record Created (Session.refresh_token_hash)
+↓
+Access Token (JWT) + Refresh Token Issued
 ```
 
 ---
 
-## Session Lifetime
+## Token Model
 
-Session duration:
+* **Access token:** short-lived JWT (15 minutes), never persisted, carries `{sub: account_id, session_id, iat, exp, iss, aud}`.
+* **Refresh token:** opaque value, rotated on every use (old hash invalidated, new hash stored), 30-day sliding lifetime measured from last use. Only its hash is stored (`Session.refresh_token_hash`); the plain value is never persisted.
 
-```text
-7 Days
-```
+Full token rules: `implementation/08-security-model.md` — "Token Rules."
 
 ---
 
 ## Session Expiry
 
-After session expiration, the user must re-authenticate using their registered provider.
+A refresh token is rejected once its Session record is expired or revoked. When the refresh token is rejected, the user must re-authenticate using their registered provider to obtain a new session.
 
 ```text
+Refresh Token Expired Or Revoked
+↓
 Provider Sign-In (Google or Apple)
 ↓
 Authenticate
@@ -558,16 +563,16 @@ New Session
 
 ---
 
-## Logout
+## Session Management, Device Lists, and Logout All Devices
 
-Logout applies only to the current session.
+V1 supports session management as a first-class capability:
 
-V1 does not support:
+* **Session list:** an account owner may list their own active, non-expired, non-revoked sessions (`GET /api/v1/auth/sessions`). The response never exposes refresh tokens or internal session identifiers beyond what is needed to distinguish sessions.
+* **Logout (current session only):** `POST /api/v1/auth/logout` revokes the current session's refresh token.
+* **Logout all devices:** `POST /api/v1/auth/logout-all` revokes every active, non-expired session for the account in one call — this is the "Logout All Devices" capability.
+* **Trusted devices:** V1 does not label or distinguish sessions by device trust. Every session is equivalent; there is no "trusted device" concept.
 
-* Session Management
-* Device Lists
-* Trusted Devices
-* Logout All Devices
+Full session and logout API contracts: `implementation/05-api-contracts.md` — Part 2. Full session security rules (per-request account status check, revocation triggers): `implementation/08-security-model.md` — "Session Security."
 
 ---
 

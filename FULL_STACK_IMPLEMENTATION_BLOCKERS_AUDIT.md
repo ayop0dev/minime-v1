@@ -1,664 +1,449 @@
-# تدقيق معوقات جاهزية التنفيذ الشامل — Minime V1
+# تدقيق جاهزية التنفيذ الكامل (Full-Stack) — Minime V1
 
-## 1. الحكم التنفيذي
+**نطاق التدقيق:** قراءة كاملة لكل ملف موجود فعليًا على القرص في المستودع وقت إجراء هذا التدقيق: 14 ملفًا في `implementation/`، و124 ملفًا في `Architecture-Product-Definition/` (بما فيها 12 ملف قواعد منصّات اجتماعية)، وملف السجل الجديد `ARCHITECTURE_PR_APPROVAL_DECISIONS.md`، وملف `.gitignore`. المجموع 139 ملفًا — وهو كل ما هو موجود فعليًا على القرص حاليًا. الملفان `FULL_STACK_IMPLEMENTATION_BLOCKERS_AUDIT.md` و`IMPLEMENTATION_BLOCKERS_RESOLUTION_REPORT.md` كانا موجودين سابقًا لكنهما محذوفان من شجرة العمل الحالية (git status يُظهرهما بحالة `D`)، ولذلك لا يمكن قراءتهما — وهذا حد فعلي لا افتراضي.
 
-**غير جاهز للتنفيذ.**
-
-تمت قراءة **141 ملفًا كاملة** قبل كتابة هذا التقرير: 139 ملفًا موجودًا في شجرة العمل الحالية، والنسخة التاريخية المحذوفة من `social.accounts.oauth.boundary.v1.md`، وملف `FULL_REPOSITORY_EXPORT.txt` التاريخي من Git حتى سطره الأخير (57,058). لم تُعامل النسخ التاريخية أو الملفات المحلية أو المواصفات المكررة كمواد قابلة للتجاهل.
-
-المستودع غني بالقرارات، لكنه ليس عقد تنفيذ متماسكًا. توجد عقود ممتازة الصياغة منفردة، ثم تتصادم عند حدود التسجيل، والحذف، والروابط الصادرة، والتحليلات، والتخزين، والذكاء الاصطناعي، والتخزين المؤقت. الأخطر أن بعض الوعود الأساسية لا يمكن ضمانها بالتقنيات التي اختارتها المواصفات نفسها: حدث حذف الحساب غير متين، ومع ذلك يعتمد عليه إبطال الجلسات وجدولة الحذف؛ نقرة واحدة يفترض أن تنتج حدثًا واحدًا، بينما إعادة محاولة المهمة تسمح صراحةً بالتكرار؛ وتأخير العرض العام محدد بستين ثانية بينما توجد طبقتا تخزين مؤقت مستقلتان مدة كل منهما ستون ثانية.
-
-البدء بالتنفيذ الآن لن ينتج «نسخة V1 مطابقة للمواصفات». سينتج عدة تفسيرات متنافسة، ثم ترقيعات داخل الكود تتحول فعليًا إلى معمارية غير موثقة.
+**منهجية القراءة:** قراءة كل ملف من أوله إلى آخره، بلا استثناء، ثم مضاهاة كل تصريح معماري (Architecture-Product-Definition) بما يقابله فعليًا في طبقة التنفيذ (implementation)، وتسجيل كل تناقض أو فجوة أو غموض قابل للتحقق بالرجوع إلى نص محدد في ملف محدد.
 
 ---
 
-## 2. أهم 20 معوقًا للتنفيذ
+## 1. الحكم التنفيذي (Executive Verdict)
 
-### 1. اكتمال التسجيل لا يملك معاملة قابلة للتنفيذ
+### **الحكم: قابل للتنفيذ مع مخاطر (Implementable with risks)**
 
-- **الخطورة:** حرجة.
-- **المجال:** الحساب، المصادقة، اسم المستخدم، QR، التخزين.
-- **الملفات:** `implementation/03-canonical-data-model.md`، `implementation/04-service-contracts.md`، `implementation/05-api-contracts.md`، `account/minime.account.claim.system.specification.v1.md`، `qr-code/qr-code.generation.specification.v1.md`.
-- **ما يحاول المهندس تنفيذه:** تحويل حجز اسم ومصادقة ناجحة إلى حساب نشط، وهوية مصادقة، ومحتوى ملف، ورمز QR صالح.
-- **سبب التوقف:** `Account.status` يبدأ افتراضيًا بـ`active` (`03`، سطر 118)، بينما QR شرط اكتمال في العقود الحالية ويحتاج كتابة PostgreSQL ورفع SVG إلى Object Storage. لا توجد حالة `pending` ولا بروتوكول تعويض إذا نجحت المعاملة وفشل الرفع، أو العكس. وفوق ذلك يقول `AccountService.createAccount` إنه ينشئ هوية المصادقة، مع أن `AuthRepository` محظور عليه (`04`، السطران 126 و164 تقريبًا).
-- **الخطر:** حساب نشط بلا QR، أصل يتيم، حجز اسم مستهلك بلا حساب صالح، أو تكرار هوية عند إعادة الطلب.
-- **الإصلاح المطلوب:** تعريف منسق تسجيل واحد، وحدود معاملة قاعدة البيانات، وحالة ما قبل التفعيل أو تعويض متين، ومفتاح idempotency، ومالك وحيد لإنشاء هوية المصادقة.
-- **تصنيف الإصلاح:** معماري.
+هذا ليس حكمًا متساهلًا. طبقة `implementation/` (14 ملفًا) هي على الأرجح من أنضج ما يمكن أن يُكتب لمشروع بهذا الحجم قبل بدء أي سطر كود: نموذج بيانات كامل بمستوى Prisma، عقود خدمات صريحة بقواعد التبعية المسموحة والممنوعة، عقود API مع تعيين أخطاء HTTP لكل حالة، قواعد تحقق (validation) بقيم فعلية لا نظرية، نموذج أمان يغطي كل تدفقات OAuth بالتفصيل، استراتيجية تخزين مؤقت بميزانية زمنية محسوبة رياضيًا، وخطة تنفيذ من 10 مراحل مرتبطة بملفات محددة. هذا وحده كافٍ لتبرير عدم اختيار "العمارة تمنع التنفيذ" أو "غير جاهز للتنفيذ".
 
-### 2. حذف الحساب يعتمد على حدث غير متين
+لكن هذا التدقيق يكتشف **نمطًا متكررًا وخطيرًا**: طبقة `implementation/` في عدة مواضع محددة وقابلة للإثبات **تُخالف صراحةً** نصوصًا صريحة في العمارة المجمّدة (`Architecture-Product-Definition/`)، دون أن يكون هذا الانحراف مسجَّلًا في آلية الحوكمة التي صمّمها المشروع نفسه لهذا الغرض بالتحديد: سجل `ARCHITECTURE_PR_APPROVAL_DECISIONS.md`. وقد تمت قراءة هذا السجل كاملًا (القرارات APD-001 حتى APD-010)، وتبيّن أنه **لا يغطي** خمس حالات تناقض ملموسة اكتُشفت في هذا التدقيق (تفصيلها في القسم 3). بعبارة أخرى: المشروع يملك آلية حوكمة تعمل، لكنها لم تُطبَّق على كل الانحرافات الفعلية الموجودة في الشيفرة الوصفية نفسها.
 
-- **الخطورة:** حرجة.
-- **المجال:** الحساب، المصادقة، الوظائف الخلفية، كل البيانات التابعة.
-- **الملفات:** `implementation/06-event-contracts.md`، `04-service-contracts.md`، `10-background-jobs.md`، `account/account.deletion.policy.v1.md`.
-- **ما يحاول المهندس تنفيذه:** إبطال كل الجلسات «لحظة التأكيد» وبدء مسح البيانات.
-- **سبب التوقف:** بعد تثبيت `status='deleted'` ينشر النظام `account.deleted`. المواصفة نفسها تقر بأن EventEmitter غير متين وقد يُفقد عند إعادة التشغيل (`06`، سطر 40). إبطال الجلسات وجدولة BullMQ كلاهما مستهلكان لذلك الحدث. انهيار العملية بعد commit وقبل handler يترك جلسات حية ولا ينشئ مهمة الحذف.
-- **الخطر:** وصول مصادق لحساب محذوف، وبيانات لا تُحذف، مع استجابة API تدعي أن الحذف نهائي.
-- **الإصلاح المطلوب:** outbox متين داخل معاملة الحذف، أو إدراج مهمة BullMQ وإبطال الجلسات ضمن مسار مضمون قابل للاستعادة، مع مراقب مصالحة للحسابات العالقة.
-- **تصنيف الإصلاح:** معماري.
+بالإضافة إلى ذلك، هناك فجوة نطاق واحدة كبيرة جدًا (القسم 11 — نظام تخصيص الثيم/Theme Customization) حيث تصف أربع أو خمس وثائق معمارية مجمّدة نظام تخصيص بصري كامل (ألوان، طباعة، تباعد، ظلال، حركة) بتفاصيل حقول ملموسة، بينما تحسم طبقة `implementation/` الأمر بجملة واحدة: هذه الحقول تُرفض دائمًا في V1. مهندس ينفّذ من العمارة وحدها سيبني نظامًا كاملًا غير مطلوب؛ مهندس ينفّذ من `implementation/` وحدها لن يعرف لماذا كل هذا الكم من التوثيق المعماري عن التخصيص موجود أصلًا.
 
-### 3. ملكية الأحداث متناقضة مع تنفيذ EventEmitter
+**الخلاصة:** يمكن للفريق البدء بالتنفيذ اليوم اعتمادًا على `implementation/` كمرجع أساسي وحيد (كما يوصي `implementation/README.md` نفسه: "عند تعارض أي تصريح تنفيذي مع العمارة المجمّدة، تفوز العمارة" — لكن هذا بالضبط هو المصدر القانوني للمشكلة، لأن `implementation/` هي التي تتعارض في عدة مواضع ملموسة). يجب إغلاق الفجوات الموثقة في القسم 2 والقسم 3 **قبل** بدء أي عمل على النطاقات المتأثرة تحديدًا (حذف الحساب، الجلسات، التحليلات، التخزين المؤقت، المظهر)، وليس بالضرورة قبل بدء المشروع كله.
 
-- **الخطورة:** حرجة.
-- **المجال:** الأحداث والتحليلات.
-- **الملفات:** `platform/events/event.delivery.specification.v1.md`، `event.lifecycle.specification.v1.md`، `events.architecture.specification.v1.md`، `implementation/06-event-contracts.md`.
-- **ما يحاول المهندس تنفيذه:** «سجّل قبل التوصيل» وتاريخ أحداث دائم.
-- **سبب التوقف:** المنصة المعمارية تشترط تسجيل الحدث قبل إتاحته، بينما التنفيذ لا يعرّف مخزن أحداث أصلًا ويستخدم EventEmitter غير المتين. لا يوجد schema أو repository أو transaction للحدث التجاري.
-- **الخطر:** لا يمكن الوفاء بالتاريخ، ولا إعادة التوصيل، ولا التحقق من اكتمال التحليلات.
-- **الإصلاح المطلوب:** تحديد ما إذا كانت أحداث V1 سجلات متينة أم إشعارات داخلية فقط. إن كانت متينة، يلزم Event/Outbox schema وسياسة تسليم وإعادة ومحاذاة المستهلكين.
-- **تصنيف الإصلاح:** معماري.
+---
 
-### 4. دقة عدّ النقرات منقوضة صراحةً
+## 2. أهم 20 عائقًا للتنفيذ (Top 20 Implementation Blockers)
 
-- **الخطورة:** حرجة.
-- **المجال:** Out Links، Analytics، BullMQ.
-- **الملفات:** `out-links/out-link.analytics.event.specification.v1.md`، `out-link.tracking.policy.v1.md`، `implementation/10-background-jobs.md`.
-- **ما يحاول المهندس تنفيذه:** Redirect واحد = حدث نقرة واحد بالضبط.
-- **سبب التوقف:** مهمة النقر تعاد عند الفشل، والمواصفة تقول إن التكرار «مقبول لدقة V1» (`10`، سطر 117). لا يوجد `event_id` حتمي أو unique constraint مبني على job id. كما أن عبارة «بعد إرسال الرد بنجاح» ليست نقطة commit قابلة للرصد موثوقًا من تطبيق HTTP.
-- **الخطر:** أرقام وCTR خاطئة، خصوصًا وقت الأعطال، مع ادعاء أن الأحداث حقائق.
-- **الإصلاح المطلوب:** مفتاح idempotency ثابت لكل نقرة، وقيد uniqueness، وتعريف دقيق لنقطة احتساب النقرة وعلاقة enqueue بإرسال 302.
-- **تصنيف الإصلاح:** معماري.
+### 1. نظام تخصيص الثيم (Theme Customization) موثّق بالكامل معماريًا وممنوع بالكامل تنفيذيًا
 
-### 5. إجمالي نقرات الحساب غير قابل للاستعلام بالعقد الحالي
+- **الخطورة:** حرجة (Critical)
+- **النطاق:** Appearance / Profile
+- **الملفات:** `appearance/themes/theme.customization.specification.v1.md`، `theme.definition.specification.v1.md`، `theme.selection.specification.v1.md`، `appearance/design.editor.specification.v1.md` ضد `implementation/03-canonical-data-model.md` و`implementation/04-service-contracts.md`
+- **ما الذي يحاول المهندس تنفيذه:** بناء محرر تصميم (Design Editor) يسمح للمستخدم بتغيير الألوان، الخط، التباعد، نصف قطر الزوايا، الظلال، والحركة — وكلها موثقة بحقول ملموسة (`primary_color`, `radius_xs..xl`, `shadow_style`, `animation_preset`...).
+- **لماذا يتوقف التنفيذ:** `implementation/03-canonical-data-model.md` يقول حرفيًا: "`customizations` is always an empty object `{}` in V1. No customization fields are defined or accepted in V1." لا يوجد أي مخطط تحقق (Zod schema) لأي من هذه الحقول في أي مكان في طبقة التنفيذ.
+- **لماذا هذا خطير:** أي مهندس Frontend يقرأ فقط مستندات `appearance/themes/` (وهي معتمدة/Approved، لا مسودة) سيبني شاشة تخصيص كاملة (منتقي ألوان، منزلقات تباعد، أزرار حركة) تُرفض كل قيمها عند الحفظ. هذا هدر أسابيع من العمل، وهو أخطر سيناريو ممكن لعدم التزامن بين الوثائق.
+- **الإصلاح المطلوب:** إما (أ) تحديث وثائق `theme.customization`/`theme.definition`/`design.editor` بوضع علامة "V2 فقط" صريحة على كل حقل تخصيص، أسوة تمامًا بما فُعل بنجاح في وثائق AI Platform (`ai.architecture.specification.v1.md` وأخواتها تحمل علامات "V2 scope" واضحة على كل قسم غير منفَّذ)، أو (ب) توسيع `implementation/` لدعم مجموعة تخصيص أولية فعلية.
+- **تصنيف الإصلاح:** توثيق (Documentation) — بافتراض أن قرار تضييق النطاق لـ V1 نهائي ومقصود.
 
-- **الخطورة:** حرجة.
-- **المجال:** Analytics، Out Links، البيانات.
-- **الملفات:** `implementation/03-canonical-data-model.md`، `04-service-contracts.md`، `analytics/profile.analytics.specification.v1.md`.
-- **ما يحاول المهندس تنفيذه:** `getAnalyticsSummary(account_id)` و«إجمالي النقرات».
-- **سبب التوقف:** حدث `link_click` يحتوي `out_link_id` فقط؛ `AnalyticsService` ممنوع من `OutLinkRepository`. بعد purge للرابط لا يبقى طريق لإسناد النقرة إلى الحساب. لا يوجد `account_id` في حدث النقر ولا read contract عابر للمجال.
-- **الخطر:** الاستعلام إما مستحيل أو يتطلب كسر الحدود، ويتلف «All Time» بعد حذف الروابط.
-- **الإصلاح المطلوب:** إما تضمين `account_id` snapshot في حدث النقرة، أو تعريف read model/عقد استعلام مستدام يحفظ الإسناد بعد purge.
-- **تصنيف الإصلاح:** معماري.
+### 2. سياسة الحذف الافتراضية معكوسة تمامًا بين طبقتَي العمارة والتنفيذ
 
-### 6. عقد Button/OutLink/Rendering يعرّف وجهتين مختلفتين
+- **الخطورة:** حرجة
+- **النطاق:** Platform Data / Blocks
+- **الملفات:** `platform/data/data.ownership.and.lifecycle.specification.v1.md` §11 ضد `implementation/03-canonical-data-model.md`
+- **ما الذي يحاول المهندس تنفيذه:** تحديد ما إذا كان الحذف الافتراضي لأي كيان جديد (Hard أو Soft Delete) دون الرجوع لكل حالة على حدة.
+- **لماذا يتوقف التنفيذ:** العمارة تقول حرفيًا: "Account-owned product data uses Hard Delete by default... No other V1 entity uses Soft Delete unless its domain specification explicitly defines it... When a domain specification does not define the deletion type, Hard Delete applies." لكن `03-canonical-data-model.md` يقول: "Soft Delete Policy: Default: soft delete using `deleted_at`" ويُدرج `Block` ضمن الكيانات التي تستخدم `deleted_at` بالفعل — رغم أن مواصفة `Block` نفسها (`blocks/block.system.specification.v1.md`) لا تُعرِّف صراحة نوع الحذف، أي أنه بحسب قاعدة العمارة نفسها يجب أن يكون Hard Delete.
+- **لماذا هذا خطير:** هذا ليس تفصيلًا تافهًا — إنه القاعدة الافتراضية التي تحكم كل كيان مستقبلي لا يُذكر صراحة. مهندس جديد يضيف كيانًا جديدًا (Sub-blocks مثلًا في V2) سيتبع أي القاعدتين؟ التناقض في أعلى مستوى تجريد ممكن (Data Platform)، وينزل بالتبعية على كل الكيانات.
+- **الإصلاح المطلوب:** حسم صريح واحد في مكان واحد (يُفترض `ARCHITECTURE_PR_APPROVAL_DECISIONS.md`) يوضح أن Soft Delete هو الافتراضي الفعلي لبيانات Profile-domain، وتحديث `data.ownership.and.lifecycle.specification.v1.md` ليعكس ذلك، أو العكس.
+- **تصنيف الإصلاح:** عمارة (Architecture) — يحتاج قرارًا معماريًا رسميًا لأنه يغيّر مبدأً معلنًا صراحة كـ "canon".
 
-- **الخطورة:** حرجة.
-- **المجال:** Blocks، Rendering، Out Links.
-- **الملفات:** `blocks/button.block.specification.v1.md`، `rendering/block.renderers.specification.v1.md`، `rendering/rendering.architecture.canon.v1.md`، `implementation/03` و`04`.
-- **ما يحاول المهندس تنفيذه:** زر عام متتبع.
-- **سبب التوقف:** مواصفة الزر تجعله مالكًا لـ`url`، ومواصفة renderer تقول الحفاظ عليه وعدم لفه أو تتبعه (`block.renderers`، سطر 97 تقريبًا)، بينما canonical rendering يقول إن Button Renderer يقرأ Out Link reference (`rendering canon`، سطر 485)، ونموذج Block لا يحتوي ذلك المرجع. التنفيذ يستنتج الرابط بواسطة `(block_id, connected_account_id=null)`.
-- **الخطر:** روابط خام تتجاوز القياس، أو أزرار تختفي إذا فشل إنشاء OutLink، أو اقتران خفي غير محمي بقيود قاعدة البيانات.
-- **الإصلاح المطلوب:** عقد وحيد: هل الـBlock يخزن `out_link_id` أم يتم إنشاء projection مضمون؟ ثم تعريف المعاملة بين إنشاء/تحديث Block وأرشفة/إنشاء OutLink.
-- **تصنيف الإصلاح:** معماري.
+### 3. ترتيب سلسلة حذف الحساب (Cascade) معكوس فعليًا بين الوثيقتين
 
-### 7. تحديث الكتلة والرابط الصادر بلا ذَرّية
+- **الخطورة:** عالية
+- **النطاق:** Account / Out Links / Analytics
+- **الملفات:** `account/account.deletion.policy.v1.md` §4 ضد `implementation/10-background-jobs.md` Job 7
+- **ما الذي يحاول المهندس تنفيذه:** كتابة Job معالجة الحذف المتسلسل (`account.deletion.cascade`) بالترتيب الصحيح.
+- **لماذا يتوقف التنفيذ:** العمارة تنص على ترتيب صريح مرقّم 1-11: الجلسات، **Out Links**، **Analytics Events**، **Profile Content**، **Blocks**، Appearance State، Connected Accounts، QR، **AI**، Binary Assets، حالة الحساب. التنفيذ يعكس ثلاثة من هذه الترتيبات عمدًا وبتبرير هندسي وجيه (Analytics قبل Out Links لضمان idempotency عند إعادة المحاولة؛ Blocks قبل ProfileContent؛ AI قبل QR). التبرير الهندسي سليم تقنيًا، لكنه **يخالف** نص العمارة المجمّدة حرفيًا دون أي إشارة تصالح بينهما، ودون أن يُسجَّل في `ARCHITECTURE_PR_APPROVAL_DECISIONS.md`.
+- **لماذا هذا خطير:** أي مراجع مستقبلي (أو مدقّق امتثال) يقارن الوثيقتين حرفيًا سيعتبر التنفيذ الحالي "مخالفًا للعمارة المعتمدة" — رغم كونه على الأرجح القرار الأصح هندسيًا.
+- **الإصلاح المطلوب:** إضافة قرار APD جديد يوثّق سبب إعادة الترتيب (idempotency عند إعادة محاولة الـ Job) ويُحدِّث القسم ذي الصلة في `account.deletion.policy.v1.md` ليشير صراحة إلى هذا الاستثناء.
+- **تصنيف الإصلاح:** توثيق + تسجيل حوكمة (لا حاجة لتغيير الشيفرة، فقط تسجيل القرار).
 
-- **الخطورة:** عالية.
-- **المجال:** Profile، Out Links.
-- **الملفات:** `implementation/04-service-contracts.md`، `03-canonical-data-model.md`.
-- **ما يحاول المهندس تنفيذه:** تغيير label أو URL مع حفظ تاريخ الرابط.
-- **سبب التوقف:** العملية تكتب Block عبر repository مملوك لـProfile، ثم تؤرشف وتخلق OutLink عبر خدمة أخرى. لا توجد معاملة مشتركة أو saga أو ترتيب تعويض. Last Write Wins لا يحل نصف العملية.
-- **الخطر:** Block جديد مع رابط قديم، رابطان active، أو لا رابط active.
-- **الإصلاح المطلوب:** عقد transaction coordinator واضح وقيد يمنع أكثر من OutLink active لكل clickable identity.
-- **تصنيف الإصلاح:** تخطيط تنفيذ.
+### 4. واجهات إدارة الجلسات وتسجيل الخروج من كل الأجهزة ممنوعة معماريًا وموجودة تنفيذيًا
 
-### 8. نموذج المظهر يطلب ويمنع تخصيص الكتلة في الوقت نفسه
+- **الخطورة:** حرجة
+- **النطاق:** Authentication / Account Management
+- **الملفات:** `account-management/minime.account.management.system.specification.v1.md` (قسم Logout) ضد `implementation/05-api-contracts.md` Part 2 و`implementation/08-security-model.md`
+- **ما الذي يحاول المهندس تنفيذه:** بناء `GET /api/v1/auth/sessions` (سرد الجلسات النشطة) و`POST /api/v1/auth/logout-all` (تسجيل خروج من كل الأجهزة)، بالإضافة إلى نموذج JWT بعمر 15 دقيقة و Refresh Token بعمر 30 يومًا يُدار بالتدوير.
+- **لماذا يتوقف التنفيذ:** العمارة تقول حرفيًا: "V1 does not support: Session Management, Device Lists, Trusted Devices, Logout All Devices" وتصف مدة جلسة ثابتة "7 Days" تتطلب إعادة مصادقة كاملة بعدها — بلا أي ذكر لـ Refresh Token على الإطلاق. طبقة التنفيذ تبني بالضبط ما تمنعه العمارة.
+- **لماذا هذا خطير:** هذا تناقض مباشر بين نطاقي Authentication و Account Management حول نموذج الجلسة بالكامل — وليس تفصيلًا صغيرًا. مهندس Backend يقرأ وثيقة Account Management أولًا (لأنها تصف الميزة على مستوى المنتج) ثم `implementation/05-api-contracts.md` (لأنه العقد التقني) سيجد نفسه أمام ميزتين متضادتين تمامًا لنفس الوظيفة.
+- **الإصلاح المطلوب:** تحديث `account-management/minime.account.management.system.specification.v1.md` لإزالة أو تصحيح قسم "Logout" بالكامل ليعكس نموذج JWT+Refresh الفعلي المعتمد في `08-security-model.md`.
+- **تصنيف الإصلاح:** توثيق — العمارة القديمة هنا هي الخاطئة بوضوح؛ نموذج JWT+Refresh هو الأنضج والمتوافق مع بقية النظام.
 
-- **الخطورة:** عالية.
-- **المجال:** Appearance، Block Styling، Profile.
-- **الملفات:** `appearance/themes/theme.constraints.specification.v1.md`، `theme.definition.specification.v1.md`، جميع ملفات `block-styling/`، `implementation/03` و`04` و`07`.
-- **ما يحاول المهندس تنفيذه:** `style_overrides` والتحقق منها.
-- **سبب التوقف:** Appearance يقول صراحةً لا تبنوا block-level overrides قبل مراجعة V1 (`theme.constraints`، سطر 241)، بينما ستة ملفات كاملة تجعله جزءًا من V1 والنموذج الحالي يحمله. لا يوجد catalog تنفيذي نهائي للخصائص والأنواع والحدود؛ معالجة override غير الصالح عند تغيير theme تعرض ثلاث استراتيجيات بلا اختيار.
-- **الخطر:** واجهات مختلفة، قيم محفوظة لا تُرسم، أو theme switch يكسر الملف.
-- **الإصلاح المطلوب:** قرار V1 واحد، ثم JSON schema مغلق لكل block type، وسياسة واحدة لـtheme switch، ورفض unknown keys.
-- **تصنيف الإصلاح:** معماري.
+### 5. إبطال التخزين المؤقت الذكي (Smart Cache Invalidation) ممنوع معماريًا ومطلوب تنفيذيًا في كل عملية كتابة
 
-### 9. `display_name` يبدأ فارغًا ويجب ألا يكون فارغًا
-
-- **الخطورة:** عالية.
-- **المجال:** التسجيل، Profile، SEO.
-- **الملفات:** `profile-content/profile.content.lifecycle.v1.md`، `profile.content.specification.v1.md`، `implementation/03` و`07`.
-- **ما يحاول المهندس تنفيذه:** إنشاء ProfileContent أثناء التسجيل.
-- **سبب التوقف:** lifecycle يحدد `Display Name = Empty` كحالة ابتدائية صحيحة (سطر 104)، بينما specification يجعله required (سطر 232)، وDB/validation يجعلان non-empty. بيانات provider موصوفة في عقد المصادقة بأنها غير سلطوية، ولا يحتوي طلب التسجيل display_name.
-- **الخطر:** لا يمكن تنفيذ INSERT قانوني دون اختراع قيمة من username أو provider.
-- **الإصلاح المطلوب:** جعل الحقل nullable/empty حتى onboarding، أو إضافته صراحةً لطلب التسجيل مع قاعدة مصدر واضحة.
+- **الخطورة:** عالية
+- **النطاق:** Public Profile / Rendering / Caching
+- **الملفات:** `public-profile/public-profile.cache.policy.v1.md` ضد `implementation/09-caching-strategy.md`
+- **ما الذي يحاول المهندس تنفيذه:** تحديد هل يجب استدعاء `Redis DEL` بعد كل تعديل على الملف الشخصي أم الاكتفاء بانتهاء TTL طبيعيًا.
+- **لماذا يتوقف التنفيذ:** العمارة تقول حرفيًا ضمن "Not Supported": "Manual Cache Purge، Smart Cache Invalidation" وتضيف: "Immediate Cache Purge is not required in V1. The platform relies on Short TTL Expiration." التنفيذ يأمر بعكس ذلك بالضبط: كل عملية من 11 عملية تعديل ملف شخصي مذكورة صراحة في `09-caching-strategy.md` **يجب** أن تُبطل مفتاحي Redis فورًا بعد نجاح الحفظ.
+- **لماذا هذا خطير:** هذا يغيّر معمارية التخزين المؤقت بالكامل: تنفيذ TTL-only أبسط بكثير من تنفيذ Invalidation فوري في كل مسار كتابة، والفرق التقني بينهما كبير في عدد نقاط الفشل المحتملة (فشل Redis أثناء invalidation يجب ألا يمنع الحفظ، وهذا غير موثق صراحة في وثيقة الـ cache policy).
+- **الإصلاح المطلوب:** تحديث `public-profile.cache.policy.v1.md` لإزالة "Smart Cache Invalidation" من قائمة الممنوعات، بما أنها الاستراتيجية الفعلية والأصح (تمنح تحديثًا فوريًا بدلًا من انتظار حتى 60 ثانية).
 - **تصنيف الإصلاح:** توثيق.
 
-### 10. طبقتا Cache تكسران حد الستين ثانية
+### 6. سجل قرارات ما بعد التجميد (`ARCHITECTURE_PR_APPROVAL_DECISIONS.md`) لا يغطي أيًّا من التناقضات أعلاه
 
-- **الخطورة:** عالية.
-- **المجال:** Rendering، Cache، الحساب.
-- **الملفات:** `implementation/09-caching-strategy.md`، `public-profile/public-profile.cache.policy.v1.md`، خريطة المنتج.
-- **ما يحاول المهندس تنفيذه:** تحديث عام خلال 60 ثانية كحد أقصى.
-- **سبب التوقف:** التنفيذ يعرّف طبقتين مستقلتين (`09`، سطر 38)، لكل واحدة TTL=60. قد يعيد edge cache جلب نسخة Redis عمرها 59 ثانية ثم يخزنها 60 ثانية أخرى. كما لا توجد purge للـedge عند الحذف أو التعليق أو تغيير GTM.
-- **الخطر:** 120 ثانية تقريبًا من القدم، وقد يُعرض حساب محذوف/معلّق.
-- **الإصلاح المطلوب:** ميزانية freshness مشتركة، وage propagation، أو TTL إجمالي، وpurge فوري للحالات الأمنية والحذف.
-- **تصنيف الإصلاح:** معماري.
+- **الخطورة:** حرجة (وصفية/إجرائية — لكنها تُبطل شرعية كل التناقضات الخمسة أعلاه)
+- **النطاق:** حوكمة عبر كل النطاقات
+- **الملفات:** `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` (القرارات APD-001 إلى APD-010) مقابل البنود 2-5 أعلاه
+- **ما الذي يحاول المهندس تنفيذه:** التأكد من أن أي انحراف عن العمارة المجمّدة "معتمد" رسميًا قبل البناء عليه.
+- **لماذا يتوقف التنفيذ:** نص السجل نفسه صريح: "A clarification of this kind that is not recorded in that registry is not approved for implementation, regardless of where else in the repository it appears." وبعد قراءة كل القرارات العشرة المسجَّلة، لا يوجد أي قرار يغطي انعكاس ترتيب الحذف، أو نموذج الجلسات، أو Smart Cache Invalidation، أو حقل `account_id` الإضافي في `AnalyticsEvent` (البند 12 أدناه)، أو سياسة Soft Delete الافتراضية.
+- **لماذا هذا خطير:** هذه ليست مشكلة توثيقية عابرة — إنها فشل في تطبيق آلية الحوكمة التي بناها المشروع بنفسه خصيصًا لمنع هذا النوع من الانجراف الصامت. أي عملية تدقيق امتثال مستقبلية (SOC2، مراجعة أمنية، مراجعة استثمارية فنية) ستكتشف نفس الفجوة.
+- **الإصلاح المطلوب:** جلسة عمل واحدة مخصصة لمراجعة `implementation/` بالكامل مقابل `Architecture-Product-Definition/` بندًا ببند، وتسجيل كل انحراف حقيقي كقرار APD جديد، أو تصحيحه في مصدره.
+- **تصنيف الإصلاح:** تخطيط تنفيذي (Implementation Planning) — عملية، لا تغيير شيفرة.
 
-### 11. التخزين يحذف الأصل القديم بالترتيب الخاطئ
+### 7. لا يوجد Endpoint لترتيب الروابط (Link Ranking) رغم كونه تقريرًا معتمدًا صراحة
 
-- **الخطورة:** عالية.
-- **المجال:** Storage، Profile.
-- **الملفات:** `implementation/11-platform-services.md`، `platform/storage/asset.lifecycle.specification.v1.md`، `storage.architecture.specification.v1.md`.
-- **ما يحاول المهندس تنفيذه:** استبدال avatar دون انقطاع.
-- **سبب التوقف:** implementation يطلب حذف `old_key` قبل تثبيت المرجع الجديد، بينما lifecycle المعماري يقول commit المرجع الجديد ثم يصبح القديم orphan. لا يوجد تعويض إذا فشل upload أو DB update.
-- **الخطر:** ملف شخصي يشير إلى أصل محذوف أو أصل جديد يتيم.
-- **الإصلاح المطلوب:** upload → validate → DB swap transaction → delete old async، مع cleanup للأصول غير المرتبطة.
-- **تصنيف الإصلاح:** تخطيط تنفيذ.
+- **الخطورة:** متوسطة-عالية
+- **النطاق:** Analytics
+- **الملفات:** `analytics/analytics.reporting.policy.v1.md`، `analytics/link.analytics.specification.v1.md` ضد `implementation/05-api-contracts.md` Part 8
+- **ما الذي يحاول المهندس تنفيذه:** بناء شاشة "Link Analytics Report" التي تعرض كل الروابط مرتبة تنازليًا حسب عدد النقرات (مثال موثق حرفيًا: "1. YouTube 120 Clicks، 2. WhatsApp 80، 3. LinkedIn 25").
+- **لماذا يتوقف التنفيذ:** `implementation/05-api-contracts.md` لا يوفر إلا `GET /analytics/out-links/{id}` لرابط واحد فقط. لا يوجد أي Endpoint يُرجع قائمة كل روابط الحساب مرتبة حسب النقرات دفعة واحدة.
+- **لماذا هذا خطير:** لتنفيذ هذه الميزة (المعتمدة صراحة، وليست اختيارية)، سيحتاج الـ Frontend لمعرفة كل `out_link_id` مسبقًا واستدعاء endpoint منفرد لكل رابط ثم الترتيب في العميل — أداء سيّئ وغير موثق كسلوك مقصود.
+- **الإصلاح المطلوب:** إضافة `GET /api/v1/analytics/out-links` (بلا `{id}`) يُرجع قائمة مرتبة.
+- **تصنيف الإصلاح:** تخطيط تنفيذي.
 
-### 12. أنواع الصور متناقضة وملف المعالجة مفقود
+### 8. فلترة النطاق الزمني: تعارض بين مجموعة مغلقة معتمدة وقيم تاريخ حرة
 
-- **الخطورة:** عالية.
-- **المجال:** Storage، uploads.
-- **الملفات:** `storage.architecture.specification.v1.md`، `implementation/07-validation-rules.md`، `11-platform-services.md`.
-- **ما يحاول المهندس تنفيذه:** قبول وتحويل الصور إلى WebP.
-- **سبب التوقف:** Storage يقبل HEIC ولا يقبل animated GIF دائمًا (سطر 576)، validation يقبل GIF ولا يذكر HEIC (`07`، السطران 451 و463). المرجع `platform/storage/asset.processing.specification.v1.md` مذكور (سطر 660) لكنه غير موجود.
-- **الخطر:** اختلاف frontend/backend، أخطاء مكتبة التحويل، وقبول ملفات لا يمكن معالجتها بأمان.
-- **الإصلاح المطلوب:** allowlist واحد، سياسة animation، limits دقيقة، فحص magic bytes، وعقد processing موجود فعليًا.
+- **الخطورة:** متوسطة
+- **النطاق:** Analytics
+- **الملفات:** كل ملفات `analytics/*` ضد `implementation/05-api-contracts.md` Part 8
+- **ما الذي يحاول المهندس تنفيذه:** تحديد شكل معامل الفلترة الزمنية في واجهات التحليلات.
+- **لماذا يتوقف التنفيذ:** العمارة تفرض أربع قيم مغلقة فقط: "Today, Last 7 Days, Last 30 Days, All Time" بافتراضي صريح "Last 30 Days"، بينما التنفيذ يقبل `?from=date&to=date` حرة، بلا تعريف قيمة افتراضية عند غياب المعاملين، وبلا خريطة تحويل من الأربع قيم المعتمدة إلى تواريخ فعلية (هل "Today" تعني منتصف الليل بتوقيت الحساب أم UTC؟).
+- **لماذا هذا خطير:** كل مهندس Frontend سسيضطر لاختراع تحويل خاص به بين الخيارات الأربعة المعروضة للمستخدم والمعاملين الفعليين المرسلين للـ API، ما يعني احتمال تناقض بين شاشات مختلفة من نفس التطبيق.
+- **الإصلاح المطلوب:** توثيق التحويل الدقيق (منطقة زمنية، حدود اليوم) والقيمة الافتراضية عند غياب المعاملين في `05-api-contracts.md`.
+- **تصنيف الإصلاح:** تخطيط تنفيذي.
+
+### 9. حالة المصادقة "blocked" لا تملك أي آلية تخزين أو تفعيل
+
+- **الخطورة:** متوسطة
+- **النطاق:** Authentication / Security
+- **الملفات:** `account/authentication.policy.v1.md` ضد `implementation/04-service-contracts.md`، `05-api-contracts.md`، `08-security-model.md`
+- **ما الذي يحاول المهندس تنفيذه:** تنفيذ حالة "blocked" الرابعة (بجانب success/failed/expired) الموصوفة كنتيجة رسمية للمصادقة، تُفعَّل "عند تجاوز عدد محاولات المصادقة عتبة معينة ضمن نافذة زمنية معينة."
+- **لماذا يتوقف التنفيذ:** لا يوجد أي كيان بيانات، أو حقل عداد محاولات، أو علاقة موثقة بين هذا وبين تحديد المعدل العام (Rate Limiting بـ429) في أي من ملفات `implementation/`. بما أن المصادقة كلها OAuth (لا كلمة مرور)، فمن غير الواضح أصلًا ما الذي يُشكّل "محاولة فاشلة" تستوجب هذا العداد.
+- **لماذا هذا خطير:** هذا الغموض يجعل من المستحيل تنفيذ هذه الحالة دون تخمين — وهي علامة على أن هذا الجزء من الوثيقة ربما بقيّة من تصميم سابق قائم على كلمة مرور لم تُنظَّف بالكامل بعد الانتقال لنموذج OAuth البحت.
+- **الإصلاح المطلوب:** إما حذف مفهوم "blocked" بالكامل من `authentication.policy.v1.md` بما أنه لا ينطبق على مصادقة OAuth بحتة، أو تعريفه بدقة (ما الحدث الذي يُعتبر محاولة فاشلة في تدفق OAuth؟).
+- **تصنيف الإصلاح:** عمارة.
+
+### 10. سياسة فهرسة SEO تفترض دورة مسودة/نشر غير موجودة في أي مكان آخر بالنظام
+
+- **الخطورة:** متوسطة
+- **النطاق:** SEO
+- **الملفات:** `seo/seo.indexing.policy.v1.md` ضد كل من `appearance.system.specification.v1.md`، `profile.content.specification.v1.md`، `implementation/README.md`
+- **ما الذي يحاول المهندس تنفيذه:** تحديد شروط استبعاد صفحة من فهرسة محركات البحث.
+- **لماذا يتوقف التنفيذ:** الوثيقة تسرد "draft profiles، unpublished profiles" كحالات يجب استبعادها، وتذكر انتقالات "Published → Draft" — بينما كل بقية النظام يؤكد بلا استثناء: "There is no publish button, no drafts... Minime V1 is always-live" وحتى الثابت المطلق في `implementation/README.md`: "There are no draft, unpublished, scheduled, preview, or separate live profile states."
+- **لماذا هذا خطير:** `implementation/12-seo-and-integrations.md` تجاوز هذه المشكلة عمليًا (باستخدام `Account.status` فقط)، لكن الوثيقة المعمارية نفسها لا تزال متناقضة داخليًا مع بقية المستودع — وهذا يربك أي قارئ مستقبلي يحاول فهم "هل توجد مسودات فعلًا أم لا؟"
+- **الإصلاح المطلوب:** حذف كل إشارة لـ Draft/Published من `seo.indexing.policy.v1.md` واستبدالها بمنطق `Account.status` فقط.
 - **تصنيف الإصلاح:** توثيق.
 
-### 13. AI يملك ولا يملك كيانًا في الجملة نفسها
+### 11. "تحديد نوع الملف الشخصي" لبيانات SEO المهيكلة (Structured Data) لا يملك مصدر بيانات لتحديده
 
-- **الخطورة:** عالية.
-- **المجال:** AI، Data، API.
-- **الملفات:** `platform/ai/ai.architecture.specification.v1.md`، `platform/data/canonical.entities.map.v1.md`، `implementation/03` و`11` و`13`.
-- **ما يحاول المهندس تنفيذه:** Analysis Sessions قابلة لإعادة الاستخدام.
-- **سبب التوقف:** التنفيذ يعرّف `AnalysisSession` (`03`، سطر 621)، ثم يقول «لا persistence للذكاء الاصطناعي» (`11`، سطر 303)، و«لا يملك أي كيان DB» (سطر 557)، ثم «AnalysisSession هو الكيان الوحيد المملوك للـAI» (سطر 564). الخريطة التاريخية ما زالت تعرف `AI Suggestion` وقرارات مقبولة بشكل مختلف.
-- **الخطر:** schema وrepository وسياسة الحذف والخصوصية تختلف حسب الملف الذي قرأه المهندس.
-- **الإصلاح المطلوب:** تعريف فئة الكيان ومالكه وعمره وحقوله النهائية، وإزالة الجمل المتعارضة.
-- **تصنيف الإصلاح:** معماري.
-
-### 14. لا توجد API تنفيذية لجلسة التحليل
-
-- **الخطورة:** عالية.
-- **المجال:** AI، Frontend، Backend.
-- **الملفات:** `implementation/03-canonical-data-model.md`، `11-platform-services.md`، `05-api-contracts.md`، `13-implementation-plan.md`.
-- **ما يحاول المهندس تنفيذه:** زر «حلّل ملفي»، حالة pending/completed/failed، ثم عرض التقرير.
-- **سبب التوقف:** الكيان والخدمة والخطة موجودة، لكن `05-api-contracts` لا يقدم endpoint أو DTO أو polling contract أو error contract أو schema نهائيًا لـ`report/scores/suggestions`. لا توجد دلالة accept/reject/apply.
-- **الخطر:** frontend وbackend سيخترعان بروتوكولين مختلفين.
-- **الإصلاح المطلوب:** API كاملة وتحويلات الحالة وschema إصدارية وإلغاء/إعادة ومحاذاة rate limits.
+- **الخطورة:** منخفضة-متوسطة
+- **النطاق:** SEO
+- **الملفات:** `seo/seo.structured-data.specification.v1.md` ضد نموذج البيانات الكامل
+- **ما الذي يحاول المهندس تنفيذه:** بناء منطق "Profile Type Resolution" الذي يختار تلقائيًا بين أربعة أنواع مخططات Schema.org: `ProfilePage، Person، Organization، WebSite`.
+- **لماذا يتوقف التنفيذ:** لا يوجد أي حقل في `Account` أو `ProfileContent` يُصنِّف الحساب كشخصي أم مؤسسي أم عام — بنية Minime V1 كلها "هوية واحدة = حساب واحد = ملف شخصي واحد" بلا تصنيف نوع. التنفيذ الفعلي (`12-seo-and-integrations.md`) يتجاهل هذا كليًا ويُصدِّر `"@type": "Person"` ثابتة للجميع.
+- **لماذا هذا خطير:** الوثيقة المعمارية تطلب سلوكًا (اختيار تلقائي بين 4 أنواع) لا يمكن تنفيذه فعليًا بالبيانات المتاحة.
+- **الإصلاح المطلوب:** حذف الأنواع الثلاثة غير القابلة للتحقيق (`ProfilePage`, `Organization`, `WebSite`) من نطاق V1 وتثبيت `Person` كنوع وحيد موثّق.
 - **تصنيف الإصلاح:** توثيق.
 
-### 15. Connected Accounts يرفض حسابًا «غير موجود» رغم حظر فحص الوجود
+### 12. إضافة `account_id` لسجلات `link_click` في `AnalyticsEvent` غير موثقة في نموذج التحليلات المعماري
 
-- **الخطورة:** عالية.
-- **المجال:** Connected Accounts، Social Accounts.
-- **الملفات:** `account-management/connected.accounts.specification.v1.md`، `minime.account.management.system.specification.v1.md`.
-- **ما يحاول المهندس تنفيذه:** إضافة حساب اجتماعي يدويًا.
-- **سبب التوقف:** الأول يقول إن النظام يتحقق من التنسيق فقط ولا يفحص الوجود؛ الثاني يقول «If the account cannot be found: Creation Rejected» (سطر 284).
-- **الخطر:** أحد الفريقين يبني طلبات خارجية ممنوعة والآخر لا يبنيها.
-- **الإصلاح المطلوب:** حذف شرط الوجود وتوحيد معنى validation على أنه format فقط، أو إدخال عقد تحقق خارجي صريح؛ لا يمكن الإبقاء على الاثنين.
+- **الخطورة:** منخفضة-متوسطة
+- **النطاق:** Analytics / Platform Data
+- **الملفات:** `analytics/analytics.model.specification.v1.md`، `analytics/analytics.data-source.specification.v1.md` ضد `implementation/03-canonical-data-model.md`
+- **ما الذي يحاول المهندس تنفيذه:** تحديد الحقول الدقيقة لسجل حدث `link_click`.
+- **لماذا يتوقف التنفيذ:** العمارة تحصر حقول `link_click` في أربعة فقط: `event_id, event_type, out_link_id, created_at`. التنفيذ يضيف `account_id` كـ snapshot غير قابل للتغيير (لأسباب أداء وجيهة: تفادي الحاجة لـ join مع `OutLink` بعد حذفه). هذا امتداد غير موثق في مكانه الصحيح ولا مسجَّل في سجل APD.
+- **لماذا هذا خطير:** ليس تناقضًا فعليًا في السلوك (الإضافة متوافقة وليست متعارضة)، لكنه توسيع لمخطط كيان معتمد دون تسجيله وفق سياسة الحوكمة المعلنة.
+- **الإصلاح المطلوب:** تسجيله كقرار APD جديد.
+- **تصنيف الإصلاح:** تخطيط تنفيذي.
+
+### 13. خريطة الكيانات المعمارية تفرض "هوية مستقلة لكل كيان" بينما ثلاثة كيانات موثقة بلا هوية فعلية
+
+- **الخطورة:** منخفضة
+- **النطاق:** Platform Data
+- **الملفات:** `platform/data/canonical.entities.map.v1.md` §3.5/§9 ضد `implementation/03-canonical-data-model.md`
+- **الشرح:** الخريطة تُلزم كل "Canonical Entity" بامتلاك "stable record identity"، وتُفرد لكل من "Block Style Override" و"Appearance Configuration" و"Theme Selection" قسمًا مستقلًا بعلاقات ودورة حياة خاصة به — وكأنها ثلاثة جداول منفصلة. التنفيذ يطويها جميعًا كحقول JSONB مجهولة الهوية داخل `Block.style_overrides` و`ProfileContent.appearance_config`، بلا `id` أو `created_at` خاص بها.
+- **لماذا هذا خطير:** مهندس يقرأ خريطة الكيانات حرفيًا سيتوقع ثلاثة جداول/مستودعات (Repositories) إضافية غير موجودة فعليًا في `03-canonical-data-model.md`.
+- **الإصلاح المطلوب:** إضافة ملاحظة صريحة في خريطة الكيانات توضح أن هذه الكيانات "مفاهيمية" وتُخزَّن كحقول JSONB فرعية لا كجداول مستقلة.
 - **تصنيف الإصلاح:** توثيق.
 
-### 16. سجل المنصات الاجتماعية غير متسق
+### 14. سياسة سجل التدقيق (Audit Logging) تسرد أحداثًا لكيانات غير موجودة في V1
 
-- **الخطورة:** عالية.
-- **المجال:** Social Accounts، validation، frontend.
-- **الملفات:** `social.accounts.platform.rules.v1.md`، مجلد `social-platforms/`، `implementation/03-canonical-data-model.md`.
-- **ما يحاول المهندس تنفيذه:** enum واحد وقواعد platform registry.
-- **سبب التوقف:** الوثيقة تشير إلى مجلد غير موجود `social-accounts/platform/`، وتضم GitHub وPinterest بلا ملفي قواعد وبلا وجود في enum؛ بينما enum يضم Snapchat/Spotify/Telegram/Twitch. لا توجد آلية إصدار أو اختبار تطابق registry مع enum.
-- **الخطر:** خيارات تظهر في UI ولا يقبلها backend أو قواعد لا يمكن تحميلها.
-- **الإصلاح المطلوب:** manifest آلي واحد يولّد enum والقواعد والخيارات، مع اختبار اكتمال يمنع build عند الاختلاف.
-- **تصنيف الإصلاح:** تخطيط تنفيذ.
+- **الخطورة:** منخفضة
+- **النطاق:** Account Management
+- **الملفات:** `account-management/audit.logging.policy.v1.md`
+- **الشرح:** تسرد الوثيقة `recovery_email_changed` (لا يوجد مفهوم Recovery Email في أي مكان آخر بالنظام) و`page_created/updated/deleted/reordered` (لا يوجد كيان Page مستقل عن الملف الشخصي الواحد) كأحداث "يجب تسجيلها". `implementation/03-canonical-data-model.md` يستثنيهما بهامش صغير، لكن الوثيقة المصدر نفسها لم تُحدَّث.
+- **لماذا هذا خطير:** مهندس ينفّذ سجل التدقيق بالاعتماد فقط على هذه الوثيقة (المعتمدة) سيحاول تسجيل أحداث لكيانات لا وجود لها.
+- **الإصلاح المطلوب:** تحديث قائمة "Logged Events" لتطابق الكيانات الفعلية.
+- **تصنيف الإصلاح:** توثيق.
 
-### 17. GTM يمثل تنفيذ كود طرف ثالث وليس «Container ID آمنًا»
+### 15. تعارض في الحقول المطلوبة لـ ConnectedAccount بين وثيقتين في نفس النطاق
 
-- **الخطورة:** حرجة.
-- **المجال:** Integrations، Security، Rendering، Cache.
-- **الملفات:** `integrations/providers/google-tag-manager.specification.v1.md`، `implementation/12-seo-and-integrations.md`، `account/account.model.specification.v1.md`.
-- **ما يحاول المهندس تنفيذه:** GTM مملوك لكل حساب في صفحته العامة.
-- **سبب التوقف:** المواصفات تدعي أن قبول ID يمنع arbitrary JavaScript؛ عمليًا مالك الحاوية يستطيع نشر tags/scripts تعمل على أصل Minime. لا يوجد CSP/nonce/sandbox/consent/domain isolation أو سياسة إساءة. وتغيير `settings.gtm_container_id` غير مدرج بوضوح في invalidation.
-- **الخطر:** XSS وظيفي، سرقة بيانات الصفحة، phishing، وكسر الخصوصية على نطاق المنصة.
-- **الإصلاح المطلوب:** قرار أمني صريح: منع GTM لكل مستخدم، أو عزله على origin/sandbox منفصل مع CSP وسياسة مراجعة وموافقة. هذا ليس regex فقط.
-- **تصنيف الإصلاح:** معماري.
+- **الخطورة:** منخفضة
+- **النطاق:** Account Management
+- **الملفات:** `account-management/connected.accounts.specification.v1.md` (يتضمن `sort_order`) ضد `account-management/minime.account.management.system.specification.v1.md` (لا يتضمن `sort_order` رغم وصفه لاحقًا لسحب وإفلات الترتيب)
+- **الإصلاح المطلوب:** توحيد قائمة الحقول المطلوبة بين الوثيقتين.
+- **تصنيف الإصلاح:** توثيق.
 
-### 18. قواعد التزامن تسمح بخرق القيود
+### 16. ملف `social.accounts.platform.rules.v1.md` المركزي متقادم مقارنة بادعائه الخاص "12 منصة"
 
-- **الخطورة:** عالية.
-- **المجال:** Data، Blocks، Username، Connected Accounts.
-- **الملفات:** `data.architecture.specification.v1.md`، `implementation/03` و`04`.
-- **ما يحاول المهندس تنفيذه:** max-one identity block، حد الكتل، حجز username، reorder.
-- **سبب التوقف:** «Last Write Wins» (`data.architecture`، سطر 454) لا يمنع عمليتي create متزامنتين. لا يوجد partial unique index لـavatar/name/bio، ولا lock/serializable لحساب العدد، ولا قيد يضمن عدم تضارب Account.username مع جدول الحجز، ولا uniqueness/contiguity لـsort_order.
-- **الخطر:** duplicate identity blocks، تجاوز الحد، ترتيب غير حتمي، وحجز اسم مملوك فعليًا.
-- **الإصلاح المطلوب:** قيود DB ومعاملات isolation/locks وسياسة retry لكل invariant.
-- **تصنيف الإصلاح:** تخطيط تنفيذ.
+- **الخطورة:** منخفضة
+- **النطاق:** Social Accounts
+- **الملفات:** `social-accounts/social.accounts.platform.rules.v1.md`
+- **الشرح:** الملف يعلن "V1 supported platforms (closed set, exactly 12)" ثم لا يوثّق فعليًا في جسمه إلا 7 منصات (Instagram, TikTok, X, Facebook, LinkedIn, YouTube, Behance)، بينما المنصات الخمس الأخرى (Twitch, Threads, Telegram, Spotify, Snapchat) موجودة فقط في الملفات المستقلة داخل `social-platforms/` (وهي موجودة فعليًا وموثقة جيدًا هناك).
+- **لماذا هذا خطير:** مهندس يعتمد على هذا الملف الموحّد وحده دون فتح 12 ملفًا منفصلًا سيظن أن 5 منصات غير موثقة.
+- **الإصلاح المطلوب:** إما حذف الأقسام التفصيلية من هذا الملف والإحالة الكاملة لمجلد `social-platforms/`، أو إكماله ليغطي كل الـ 12.
+- **تصنيف الإصلاح:** توثيق.
 
-### 19. Audit Logging مطلوب لكنه غير موجود في التنفيذ
+### 17. حقل `source_mode` في سجل التسليم (Handoff Record) يُسقَط بصمت ولا يُخزَّن أبدًا
 
-- **الخطورة:** عالية.
-- **المجال:** Security، Operations، deletion.
-- **الملفات:** `account-management/audit.logging.policy.v1.md`، `account/account.deletion.policy.v1.md`، كل `implementation/`.
-- **ما يحاول المهندس تنفيذه:** الاحتفاظ بسجلات تدقيق 12 شهرًا بعد حذف الحساب.
-- **سبب التوقف:** السياسة تعرف payload والوصول والاحتفاظ، والحذف يعتمد على بقاء السجل، لكن لا يوجد AuditLog model/repository/service/job/admin authorization. بعض الأحداث المذكورة مثل recovery email وpage lifecycle غير موجودة أصلًا.
-- **الخطر:** لا يمكن الوفاء بالاحتفاظ أو التحقيق الأمني، ويظل سبب إبقاء Account record بلا تطبيق داعم.
-- **الإصلاح المطلوب:** إما إدخال النظام التنفيذي كاملًا بما في ذلك redaction وaccess وretention، أو إزالة اعتماده من ضمانات V1.
-- **تصنيف الإصلاح:** معماري.
+- **الخطورة:** منخفضة
+- **النطاق:** Social Accounts / Connected Accounts
+- **الملفات:** `social-accounts/social.accounts.storage.model.v1.md` ضد `implementation/03-canonical-data-model.md`
+- **الشرح:** حقل `source_mode` (Smart أو Manual) معرَّف صراحة كأحد حقول سجل التسليم السبعة، مع توثيق أنه "غير منقول" إلى `Connected Accounts`. النتيجة: لا توجد أي طريقة على الإطلاق — لا في قاعدة البيانات، ولا في التحليلات، ولا في سجل التدقيق — لمعرفة "كم مستخدمًا استخدم Smart Mode مقابل Manual Mode" مستقبلًا، رغم كون هذا سؤال منتج شائع.
+- **الإصلاح المطلوب:** قرار منتج صريح: هل هذه المعلومة مطلوبة للتحليل مستقبلًا؟ إن كانت كذلك، يجب حفظها في مكان ما (سجل تدقيق أو حدث تحليلي منفصل).
+- **تصنيف الإصلاح:** تخطيط تنفيذي.
 
-### 20. خطة النشر لا تشغّل النظام الموصوف
+### 18. لا يوجد ملف `.env.example` في المستودع رغم الاعتماد عليه كمرجع قيم افتراضية في عدة مواضع
 
-- **الخطورة:** حرجة.
-- **المجال:** Operations، Routing، Workers.
-- **الملفات:** `implementation/01-technology-stack.md`، `02-repository-structure.md`، `13-implementation-plan.md`، API QR/public routes.
-- **ما يحاول المهندس تنفيذه:** نشر Web وAPI وworkers خلف Nginx.
-- **سبب التوقف:** الخطة تبني حاويتين فقط API/Web، ولا تعرف worker process رغم اعتماد الحذف والنقر والاحتفاظ عليه. Nginx يوجه `/api/*` و`/out/*` إلى Nest و`/*` إلى Next (`13`، سطر 302)، لكنه لا يوجه `/qr/*` العام إلى Nest. «current Node.js LTS» غير مثبت (`01`، سطر 39)، ولا توجد إصدارات dependencies أو rollback migration أو topology للتوسع، مع EventEmitter محلي للعملية.
-- **الخطر:** الوظائف لا تنفذ، QR يصل للتطبيق الخطأ، والمثيلات المتعددة تفقد handlers محلية.
-- **الإصلاح المطلوب:** topology تنفيذية كاملة، worker service، routing table، process ownership، pinning، health/readiness، migration/rollback، وسياسة multi-instance.
-- **تصنيف الإصلاح:** تخطيط تنفيذ.
+- **الخطورة:** متوسطة
+- **النطاق:** عبر كل النطاقات (Technology Stack / AI Platform)
+- **الملفات:** `implementation/01-technology-stack.md`، `implementation/11-platform-services.md` يحيلان مرارًا إلى ".env.example" لتحديد القيم الفعلية الافتراضية (مزوّد الـ AI الافتراضي، إعدادات GTM، إلخ) — لكن لا يوجد أي ملف بهذا الاسم ضمن الـ 140 ملفًا المتتبَّعة في المستودع بأكمله (تم التحقق عبر `git ls-files`).
+- **لماذا هذا خطير:** الوثائق تحيل قرارات تكوين حرجة (أي مزوّد AI افتراضي؟ ما قيمة `AI_TIMEOUT_MS` الفعلية المستخدمة؟) إلى ملف لم يُنشأ بعد، ما يعني أن هذه القيم غير محسومة عمليًا رغم الإيحاء بأنها محسومة.
+- **الإصلاح المطلوب:** إنشاء `.env.example` فعلي في جذر مستودع الشيفرة (لا في مستودع العمارة هذا بالضرورة) قبل بدء "Phase 1 — Project Bootstrap".
+- **تصنيف الإصلاح:** تخطيط تنفيذي.
 
----
+### 19. لا توجد قيم رقمية فعلية لتحديد المعدل (Rate Limiting) لأي مسار عدا الذكاء الاصطناعي
 
-## 3. التعارضات العابرة للمجالات
+- **الخطورة:** متوسطة (أمنية)
+- **النطاق:** Security
+- **الملفات:** `implementation/08-security-model.md` قسم "Rate Limiting"
+- **الشرح:** القسم يسرد 9 نقاط نهاية (endpoints) يجب حمايتها بتحديد معدل (OAuth start/callback/register، فحص توفر اسم المستخدم، الحجز، البروفايل العام، `/out/`، `/qr/`)، لكن لا يُعطى لأي منها رقم فعلي (كم طلبًا في الدقيقة؟)، بخلاف حد الذكاء الاصطناعي الوحيد الموثق بدقة (10 طلبات/حساب/24 ساعة).
+- **لماذا هذا خطير:** بلا أرقام فعلية، أي مهندسين مختلفين سينفذان قيمًا مختلفة اعتباطيًا، ما يفتح ثغرة حقيقية لهجمات القوة الغاشمة (Brute-force) على مسارات المصادقة تحديدًا إذا اختار أحدهم قيمة متساهلة جدًا دون توجيه.
+- **الإصلاح المطلوب:** تحديد قيم رقمية فعلية (أو نطاق مقبول) لكل نقطة نهاية مذكورة.
+- **تصنيف الإصلاح:** تخطيط تنفيذي.
 
-| الحد | التعارض القابل للإثبات | الأثر التنفيذي |
-|---|---|---|
-| Account ↔ Authentication | `AccountService` ينشئ AuthenticationIdentity لكنه ممنوع من AuthRepository؛ AuthService أيضًا مالك الإنشاء. | لا مالك وحيد ولا transaction واضحة. |
-| Account ↔ QR | الحساب يبدأ active بينما QR مطلوب قبل اكتمال التسجيل؛ DB وObject Storage بلا تعويض. | حالات نصف مكتملة. |
-| Authentication ↔ Lifecycle | الحذف والتعليق يجب أن يبطلا الجلسات فورًا، لكن المسار حدث غير متين. | جلسات صالحة لحساب غير صالح. |
-| Profile ↔ Blocks | Profile Block Reference يعرض `block_ids` ثم يقر بأن `Block.sort_order` هو المصدر؛ ProfileContent الحالي لا يحتوي القائمة. | مفهوم «ملكية المجموعة» بلا تمثيل. |
-| Profile ↔ Registration | display_name فارغ وصحيح في lifecycle، required/non-empty في schema. | التسجيل لا يستطيع إنشاء الصف قانونيًا. |
-| Blocks ↔ Rendering | Title/Textbox يخزنان `content.text`؛ أمثلة Render Object والـrenderer تستخدم `value`. Image يخزن `image_id` لكن renderer القديم يطلب `url/alt`. | mapping تخميني لكل نوع. |
-| Blocks ↔ Out Links | Button يملك URL خام، لكن rendering الحالي يفرض `/out/{public_id}`. | مصدر وجهة مزدوج. |
-| Appearance ↔ Block Styling | Appearance يؤجل overrides، Block Styling يجمدها كـV1. | نطاق V1 غير محسوم. |
-| Rendering ↔ Storage | بعض العقود تتكلم عن URL مباشر/موقع عام، وأخرى تمنع كشف key وتلزم `buildPublicUrl`. | عقد تسليم وأذونات غير كامل. |
-| Connected Accounts ↔ Social Accounts | فحص وجود الحساب ممنوع ومطلوب في وثيقتين معتمدتين. | سلوك backend غير محدد. |
-| Analytics ↔ Events | Analytics يفترض أحداثًا صحيحة ودائمة؛ implementation يسمح بالفقد والتكرار. | التقارير ليست حقائق. |
-| Analytics ↔ Out Links | link_click لا يحمل account_id؛ OutLink يُحذف بعد 90 يومًا. | All-time attribution ينكسر. |
-| QR ↔ Storage | QR كيان مستقل `AccountQRCode` في الحالة الحالية، بينما النسخة التاريخية/عقود سابقة تضع `qr_config.storage_key` داخل Account. | migrations والخدمات القديمة لا تتفق. |
-| AI ↔ Data | AI «لا يملك كيانًا» ويمتلك AnalysisSession؛ خريطة الكيانات القديمة تعرف AI Suggestion. | لا نموذج نهائي. |
-| Deletion ↔ Retention | الحذف «نهائي فورًا» لكنه cascade غير متزامن وقد يفشل، وAudit Logs بلا تنفيذ. | الاستجابة تكذب على الحالة الفعلية. |
-| Cache ↔ Events | بعض invalidation مباشر وبعضه event handler غير متين، والـedge لا يُبطل. | stale output غير محدود بالوعد. |
-| SEO ↔ Visibility | SEO يتحدث عن draft/private/restricted/published، بينما V1 ينفي هذه الحالات. | robots/sitemap rules بلا inputs. |
-| SEO ↔ Connected Accounts | JSON-LD `sameAs` يضم كل الحسابات حتى غير المختارة في Social Icons. | كشف روابط لم يختر المستخدم عرضها. |
-| Settings ↔ Integrations | GTM صار user setting حاليًا، لكن ملفات تاريخية/تنفيذية سابقة تجعله deployment-wide؛ cache triggers لا تغطيه بثبات. | صفحة المستخدم قد تحمل container خاطئًا أو قديمًا. |
-| Platform ↔ Deployment | EventEmitter لا يعبر العمليات؛ خطة الإنتاج لا تعرف عدد API instances أو worker. | السلوك يتغير مع scale. |
+### 20. رمز خطأ `INVALID_IDENTIFIER` في نظام Out Links غير مُعيَّن إلى حالة HTTP في عقد API
+
+- **الخطورة:** منخفضة
+- **النطاق:** Out Links
+- **الملفات:** `out-links/out-link.error.states.v1.md` (يُعرِّف 3 حالات خطأ: `INVALID_IDENTIFIER`, `LINK_NOT_FOUND`, `LINK_ARCHIVED`) ضد `implementation/05-api-contracts.md` Part 7 (يُعرِّف فقط `404` و`410 Gone`)
+- **الشرح:** لا يوجد تعيين صريح لما يجب أن يُرجعه الخادم عند معرِّف غير صالح الصيغة أصلًا (`/out/abc` مثلًا) — الأرجح أنه `404` أيضًا، لكن هذا افتراض لا نص.
+- **الإصلاح المطلوب:** إضافة سطر صريح في `05-api-contracts.md` يُعيّن `INVALID_IDENTIFIER → 404`.
+- **تصنيف الإصلاح:** تخطيط تنفيذي.
 
 ---
 
-## 4. عقود التنفيذ المفقودة
+## 3. التناقضات بين النطاقات (Cross-Domain Contradictions)
 
-### واجهات API وDTO
-
-- API كاملة لـAnalysisSession: البدء، الحالة، النتيجة، إعادة الاستخدام، الفشل، وحدود التزامن.
-- عقد dashboard جامع أو قرار واضح بأن الواجهة تجمع أي endpoints وبأي ترتيب وفشل جزئي.
-- طلبات/استجابات QR الدقيقة، بما فيها SVG/PNG، headers، cache، وroute العام.
-- schemas فعلية لـ`Account.settings` و`qr` و`appearance.customizations` بدل `{}`.
-- schema إصدارية لـAI report/scores/suggestions.
-- error code catalog ثابت لكل endpoint؛ أرقام HTTP وحدها لا تكفي لتفرع الواجهة.
-- pagination query/meta حقيقية لكل collection أو حذف الوعد العام بها.
-- عقد Google callback/handoff: transport، state، nonce، single-use، redirects، وأخطاء المستخدم.
-- عقد provider linking/unlinking الحالي، وتحديد primary provider الذي تشير إليه الوثائق ولا يمثله schema بوضوح.
-
-### الخدمات والمعاملات
-
-- transaction coordinator للتسجيل، QR، Block+OutLink، ConnectedAccount removal، وavatar replacement.
-- isolation level، locking، وretry rules لكل invariant متزامن.
-- idempotency keys للتسجيل، OTP consume، refresh rotation، click ingestion، AI analysis، uploads.
-- compensation matrix لكل عملية تجمع PostgreSQL وRedis وS3 وBullMQ.
-- عقد dead-letter/manual recovery للحذف والتحليلات والأصول.
-
-### التحقق
-
-- أطوال display name، title، textbox، button label، contact phone/WhatsApp/location.
-- schema مغلق لكل JSONB ورفض unknown properties.
-- URL normalization ومنع scheme confusion وcontrol characters وopen-redirect abuse.
-- upload limits رقمية، dimensions، decompression bomb، magic-byte check، animation، HEIC.
-- GTM security validation أوسع من regex.
-- قواعد ترتيب arrays: uniqueness، completeness، duplicates، gaps، والـIDs المحذوفة.
-
-### الأحداث والأخطاء
-
-- Event envelope فعلي ومخزن، أو حذف ادعاء المتانة.
-- event payloads كاملة لكل اسم في catalog، مع version.
-- delivery semantics: at-most/at-least/exactly once، ordering per aggregate، retry، deduplication.
-- mapping موحد لأخطاء `/out`: الوثائق تجمع 404 و410 وcodes مختلفة.
-- correlation/request/job/event IDs وعلاقة logging بها.
-
-### الوظائف الخلفية والتخزين المؤقت
-
-- schedules دقيقة لا أمثلة «كل 5/15 دقيقة» فقط.
-- attempts/backoff/jitter/timeouts وأقصى عمر للمهمة.
-- worker concurrency وgraceful shutdown وstalled-job recovery.
-- edge purge contract وcache-control/Vary/ETag وnegative-cache TTL.
-- stampede protection عند cache miss.
-- orphan asset cleanup job الفعلي، وهو مذكور معماريًا وغير موجود بوضوح في catalog.
-
-### التفويض والحماية من الإساءة
-
-- JWT claims، algorithm، issuer/audience، access/refresh TTL، signing-key rotation.
-- session binding للـlogout ومعنى «current session».
-- OAuth state/nonce storage وTTL والاستهلاك الذري.
-- rate-limit values/windows/keys/storage/failure mode؛ قائمة endpoints ليست policy.
-- quotas للحسابات والكتل/uploads/AI والروابط مع قواعد concurrent enforcement.
-- admin authorization للتعليق وAudit Logs، وكلاهما مذكور بلا سطح تنفيذي.
+| التناقض | النطاق أ | النطاق ب | الخلاصة |
+|---|---|---|---|
+| سياسة الحذف الافتراضية | Platform Data (Hard Delete افتراضيًا) | Blocks/implementation (Soft Delete افتراضيًا فعليًا) | معكوسة تمامًا — البند 2 أعلاه |
+| ترتيب سلسلة حذف الحساب | Account Deletion Policy | Background Jobs implementation | ثلاثة انعكاسات ترتيب مقصودة وغير موثقة — البند 3 |
+| نموذج الجلسة/تسجيل الخروج | Account Management | Authentication implementation | تناقض كامل في وجود إدارة الجلسات من عدمه — البند 4 |
+| Smart Cache Invalidation | Public Profile Cache Policy | Rendering/Caching implementation | ممنوع معماريًا، مطلوب تنفيذيًا — البند 5 |
+| تخصيص الثيم | Appearance/Themes | Canonical Data Model | موثّق بالكامل معماريًا، ممنوع بالكامل تنفيذيًا — البند 1 |
+| فهرسة SEO تفترض دورة نشر | SEO Indexing Policy | كل بقية النظام ("Always-Live") | تناقض داخل نفس مجموعة الوثائق المعمارية — البند 10 |
+| حقول Connected Account | connected.accounts.specification | minime.account.management.system.specification | خلاف داخلي بسيط — البند 15 |
+| حقول AnalyticsEvent لـ link_click | Analytics Model | Canonical Data Model | امتداد غير موثق وليس تناقض فعلي — البند 12 |
+| Rendering: Product Domain أم "منطقة معمارية مستقلة"؟ | `platform.architecture.specification.v1.md` (يصفها بأنها ليست جزءًا من المنصّة ولا Platform Service، بل "منطقتها المعمارية الخاصة") | `rendering.architecture.canon.v1.md` و`MINIME_V1_PRODUCT_ARCHITECTURE_MAP.md` (يُدرجانها صراحة ضمن جدول Product Domains التسعة) | **تمّت مطابقته والتحقق منه في خريطة العمارة الرئيسية (MAP)، فتبيّن أنه لا تناقض فعلي** — الخريطة الرئيسية تحسم الأمر بوضوح: Rendering هي أحد الـ 9 نطاقات منتج (Product Domains) رسميًا. أُدرج هنا فقط للتنبيه بأن صياغة `platform.architecture.specification.v1.md` وحدها، بمعزل عن الخريطة الرئيسية، قد تُربك قارئًا لم يصل بعد لتلك الخريطة. |
 
 ---
 
-## 5. مخاطر نموذج البيانات
+## 4. العقود التنفيذية المفقودة (Missing Implementation Contracts)
 
-1. JSONB مستخدم كبديل عن schema في `settings` و`contact` و`appearance_config` و`content` و`source_snapshot` ونتائج AI، دون CHECK constraints تغلق الأشكال.
-2. `Account.status DEFAULT active` لا يمثل مرحلة التسجيل/QR.
-3. لا يوجد تمثيل واضح لـprimary authentication provider رغم إلزام «واحد بالضبط» في وثائق الحساب.
-4. `OutLink.connected_account_id` موثق في نسخ كـTEXT رغم أن المعرّف UUID؛ العلاقات المنطقية بلا FK تسمح بالدوالّ المعلقة.
-5. `AnalyticsEvent` union لا يملك CHECK يفرض حقول profile_view مقابل link_click.
-6. click event بلا account_id يفقد الإسناد بعد purge.
-7. single-instance blocks تعتمد على read-then-write بلا partial unique index.
-8. MAX_BLOCKS يعتمد على count متزامن بلا lock.
-9. `sort_order` لا يضمن uniqueness أو contiguity أو tie-breaker في Blocks وConnectedAccounts وداخل SocialIcons.
-10. soft-delete للكتل يخالف قاعدة Hard Delete الافتراضية في Data lifecycle ولا توجد purge policy للكتل.
-11. ImageAsset orphan cleanup لا يغطي بوضوح حذف/استبدال الكتل؛ «يحذف عند حذف الحساب» ليس cleanup.
-12. AnalysisSession JSONB غير معرف بنيويًا، وإعادة الاستخدام لا تُبطل تلقائيًا عند تبديل provider/model إلا إذا غُيّر version يدويًا.
-13. لا uniqueness تمنع تحليلي AI pending متطابقين.
-14. AccountQRCode الحالي يحتاج unique account_id، وحالة active/asset consistency، ومعاملة S3؛ هذه التفاصيل غير مكتملة.
-15. AuditLog مطلوب ولا model له.
-16. UsernameReservation منفصل عن Account uniqueness؛ قاعدة البيانات لا تستطيع منع اسم في الجدولين دون locking أو exclusion strategy.
-17. AuthenticationIdentity uniqueness والتطبيع عبر email/provider subject يحتاج قواعد case/canonicalization وهجرة عند تغير email لدى provider.
-18. retained Account بعد الحذف يحتفظ settings وQR metadata ما لم تُحدد redaction دقيقة.
+- **API:** لا يوجد Endpoint لترتيب الروابط (Link Ranking) دفعة واحدة (البند 7). لا يوجد تعيين صريح لـ `INVALID_IDENTIFIER` إلى حالة HTTP (البند 20).
+- **التحقق (Validation):** لا توجد خريطة تحويل رسمية بين قيم فلترة الوقت الأربع المعتمدة (`Today/Last 7 Days/Last 30 Days/All Time`) والمعاملين الفعليين `from/to` (البند 8).
+- **الأحداث (Events):** حقل `source_mode` يُجمع لكنه لا يُخزَّن ولا يُصدَّر كحدث تحليلي في أي مكان (البند 17).
+- **معالجة الأخطاء:** حالة "blocked" في المصادقة غير مربوطة بأي آلية تخزين أو تفعيل فعلية (البند 9).
+- **تحديد المعدل (Rate Limiting):** لا قيم رقمية فعلية لثمانية من تسعة مسارات محمية (البند 19).
+- **الإعدادات (Configuration):** لا يوجد ملف `.env.example` فعلي رغم الاعتماد عليه كمرجع (البند 18).
+- **الحوكمة:** خمسة انحرافات تنفيذية فعلية عن العمارة المجمّدة غير مسجَّلة في `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` رغم أن السياسة تُلزم بتسجيلها (البند 6).
 
 ---
 
-## 6. مخاطر الخلفية
+## 5. مخاطر نموذج البيانات (Data Model Risks)
 
-- **OTP:** إرسال البريد قبل إنشاء السجل يخلق OTP وصل للمستخدم ولا يمكن التحقق منه إذا فشل insert. عكس الترتيب يخلق سجلًا لبريد لم يصل. يلزم state/attempt أو transactional outbox، لا مجرد اختيار ترتيب.
-- **استهلاك الرموز:** verification_token وgoogle_token موصوفان single-use بلا مخزن replay أو claim ذري.
-- **Refresh rotation:** طلبان متزامنان للرمز نفسه يحتاجان compare-and-swap وعقوبة reuse؛ غير معرف.
-- **Google OAuth:** لا state/nonce/PKCE/callback contract نهائي ولا mapping لأخطاء provider.
-- **إنشاء الحساب:** ملكية إنشاء AuthenticationIdentity متداخلة.
-- **الحذف:** فجوة commit/event، لا حالة progress، لا recovery endpoint، لا reconciliation.
-- **التعليق الإداري:** السلوك موجود بلا admin API/policy/audit.
-- **الكتل:** add/update/delete تنشئ آثار OutLink عابرة للمجال بلا transaction.
-- **الحسابات المتصلة:** الحذف يعدل عدة Block JSONB ويؤرشف روابط ويحذف السجل؛ لا rollback.
-- **إعادة الترتيب:** لا تعريف للائحة ناقصة/مكررة/تحتوي IDs محذوفة، ولا حماية من تعديل متزامن.
-- **الرفع:** لا multipart field name، ولا streaming/buffering rule، ولا cleanup عند قطع الاتصال.
-- **OutLink:** public_id collision retry غير محدد، و`created` state لا يملك انتقالًا تنفيذيًا واضحًا.
-- **Analytics:** timezone وinclusive/exclusive وCTR عند صفر وrounding وretention duration غير محددة.
-- **Rendering:** Nest يجمع البيانات، Next ينتج HTML؛ عقد النقل بينهما غير موجود، ومع ذلك كلاهما يوصف بأنه renderer.
-- **SEO/GTM:** حقن metadata/script داخل طبقة HTML غير محددة الملكية بين Next وNest.
-- **AI:** provider adapter وstructured output validation وprompt/version migration والتزامن غير معرفة.
-- **Jobs:** القيم كلها تقريبًا أمثلة؛ لا DLQ ولا alert threshold ولا replay tooling.
+نموذج البيانات في `implementation/03-canonical-data-model.md` هو من أقوى أجزاء هذا المستودع: 14 كيانًا، كل حقل بنوعه وقيوده، فهارس جزئية (Partial Unique Indexes) محسوبة بدقة، وقفل استشاري (Advisory Lock) موثّق السبب لكل حالة تزامن حرجة. المخاطر المتبقية محصورة في:
+
+1. **تعارض Hard/Soft Delete الافتراضي (البند 2)** — يجب حسمه قبل إضافة أي كيان جديد مستقبلًا كي لا يتكرر الغموض.
+2. **ثلاثة كيانات "مفاهيمية" بلا هوية مستقلة فعليًا رغم أن خريطة الكيانات تفرض ذلك (البند 13)** — لا يؤثر على قابلية البناء لكن يخلق التباسًا وثائقيًا.
+3. **حقل `account_id` الإضافي في `AnalyticsEvent` لـ `link_click` (البند 12)** — إضافة سليمة تقنيًا لكن غير مسجَّلة حوكميًا.
+4. **حقل `source_mode` المفقود من `ConnectedAccount` رغم توثيقه كجزء من عقد التسليم (البند 17).**
+
+لا توجد مخاطر في التسمية، الفهرسة، أو نزاهة العلاقات (Referential Integrity) نفسها — وهذا استثنائي لمشروع بهذا الحجم في هذه المرحلة.
 
 ---
 
-## 7. مخاطر الواجهة الأمامية
+## 6. مخاطر Backend
 
-لا يوجد عقد تنفيذ واجهة أمامية يوازي تفصيل الخلفية. مجلد `apps/web` مجرد شكل مستقبلي، والخطة لا تعرّف:
-
-- خريطة routes للـsignup/login/callback/onboarding/dashboard/editor/settings/analytics/AI/QR.
-- state machine للتسجيل: reservation expiry أثناء OAuth، إعادة الحجز، email موجود، Google موجود، handoff token منتهي.
-- سلوك editor عند save فوري بلا draft: optimistic أو pessimistic، rollback UI، offline/retry، تعارض تعديلات tabs.
-- upload progress/cancel/retry، ومعالجة أصل رُفع ولم تُنشأ كتلته.
-- block reorder accessibility واللمس والkeyboard، وحالة reorder جزئية.
-- اختيار Social Icons مقابل قائمة Connected Accounts والترتيب المزدوج.
-- عرض أخطاء field-level بواسطة codes ثابتة؛ المواصفات لا تقدم codes كافية.
-- شكل analytics charts/date range/timezone/empty states/archived links.
-- QR download format، filename، preview، regeneration failure.
-- AI pending/polling/error/reuse/accept flows.
-- loading/skeleton/not-found/suspended/deleted states للصفحة العامة.
-- استراتيجية auth token storage وتجديده بين Server Components وClient Components.
-- contract يمنع تسريب GTM أو بيانات خاصة في prefetch/cache.
-- frontend test matrix beyond أربع رحلات عامة في الخطة.
-
-التنفيذ الأمامي سيضطر إلى اختراع معظم سلوك المنتج، وهذا ليس «تفصيل UI»؛ إنه منطق lifecycle وتكامل.
+- **إعادة ترتيب سلسلة الحذف (Job 7)** تعمل بشكل صحيح تقنيًا لكنها مخالفة للنص المعماري المرجعي — إن قرر أي مطوّر لاحقًا "تصحيحها" لتطابق العمارة حرفيًا (بإعادة الترتيب الأصلي)، فسيكسر خاصية idempotency الموثقة بعناية في `10-background-jobs.md`. هذا فخ حقيقي لمطوّر لاحق حَسَن النية يحاول الامتثال للعمارة.
+- **حالة "blocked" في المصادقة (البند 9)** غير قابلة للتنفيذ دون قرار تصميم إضافي؛ تجاهلها بصمت يعني عدم تطبيق حماية كاملة موثقة في وثيقة معتمدة.
+- **غياب قيم Rate Limiting الفعلية (البند 19)** يعني أن كل مطوّر Backend سيضع قيمًا اعتباطية، ما قد يُنتج ثغرات فعلية في الإنتاج (خصوصًا لمسارات OAuth العامة).
+- **نموذج AI الاصطناعي متزامن (Synchronous)** بالكامل (`POST /account/ai/analysis` يحجب حتى الاكتمال، بلا polling) — هذا موثّق بوضوح شديد وواعٍ لذاته، لكنه يفرض على أي Reverse Proxy (Nginx) أو Load Balancer قبول مهلة اتصال (timeout) لا تقل عن 60 ثانية على هذا المسار تحديدًا، وهذا يجب أن يكون بندًا صريحًا في إعدادات Nginx وليس مجرد ملاحظة نصية.
 
 ---
 
-## 8. مخاطر التكامل الشامل
+## 7. مخاطر Frontend
 
-1. Next route `/{username}` وNest `RenderingService` بلا بروتوكول داخلي موثق.
-2. تحديث Profile يكتب DB ثم يبطل Redis، لكن edge يبقى قديمًا.
-3. إنشاء Button يكتب Block ثم OutLink؛ الصفحة قد تقرأ بينهما وتحذف الزر من output.
-4. حذف ConnectedAccount يغير JSONB في كتل متعددة، ويرابط OutLinks، ثم يحذف؛ أي failure ينتج UI/DB غير متوافق.
-5. Image upload ينتج ImageAsset مستقلًا قبل ربطه بكتلة؛ لا cleanup lifetime.
-6. AI يأخذ snapshot من profile/blocks/analytics؛ لا consistency snapshot أو transaction isolation بين هذه القراءات.
-7. Analytics click يتأخر عن redirect؛ dashboard لا يملك freshness/SLA.
-8. Account deletion لا يبطل edge cache مباشرة.
-9. `sameAs` يقرأ كل ConnectedAccounts وليس الاختيار المرئي للكتل.
-10. GTM setting يغير HTML العام، لكنه account-settings mutation لا يملك contract متين لإبطال طبقتي cache.
-11. QR public route غير موجه في Nginx plan.
-12. EventEmitter مع أكثر من API instance لا يضمن تنفيذ handler حيث تتوفر dependencies/worker enqueue.
-13. نسخ endpoint في خطة التنفيذ تختلف عن API canon: `/profile/blocks/reorder` مقابل `/profile/blocks/order`، و`/account/connected-accounts` مقابل `/api/v1/connected-accounts`.
-14. service names تختلف: `removeBlock` في الخطة مقابل `deleteBlock` في contract، وأسماء analytics summaries مختلفة.
+- **نظام تخصيص الثيم (البند 1)** هو الخطر الأكبر: أي فريق تصميم/Frontend يخطط لواجهات بناءً على `theme.customization.specification.v1.md` سيصمم شاشات (منتقي ألوان، تحكم بالتباعد، إعدادات حركة) غير قابلة للتنفيذ فعليًا في V1. يجب مواءمة توقعات فريق التصميم **قبل** بدء أي عمل UI في قسم "Design/Appearance".
+- **غياب Endpoint لترتيب الروابط (البند 7)** يعني أن أي شاشة "أفضل الروابط أداءً" ستحتاج جلب كل رابط على حدة وترتيبها يدويًا في العميل — عمل إضافي غير متوقَّع.
+- **تناقض نموذج الجلسات (البند 4)** يعني أن أي شاشة "الأجهزة المسجَّل دخولها" أو "تسجيل الخروج من كل الأجهزة" (لو استند التصميم لوثيقة Account Management) ستحتاج إعادة تصميم كامل عند اكتشاف أن `08-security-model.md` يدعمها فعليًا.
+- **فلترة النطاق الزمني في التحليلات (البند 8):** أي شاشة تعرض أزرار "اليوم / آخر 7 أيام / آخر 30 يومًا / كل الوقت" ستحتاج منطق تحويل تواريخ مخصص من جهة العميل بلا إرشاد معماري لكيفية حساب حدود اليوم بدقة.
 
 ---
 
-## 9. مخاطر الأمن
+## 8. مخاطر التكامل الكامل (Full Stack Integration Risks)
 
-- **حرج:** GTM لكل مستخدم يمنح كود طرف ثالث قدرة داخل صفحة Minime؛ لا عزل.
-- **حرج:** جلسات الحساب المحذوف قد تبقى بسبب فقد EventEmitter.
-- **عالٍ:** single-use handoff tokens بلا replay store/atomic consume.
-- **عالٍ:** JWT crypto/lifetimes/key rotation غير محددة.
-- **عالٍ:** rate limiting بلا أرقام أو window أو fail-open/fail-closed.
-- **عالٍ:** logout لا يحدد كيف يُستنتج session_id من access token.
-- **عالٍ:** unlink provider لا يحدد أثره على الجلسات المنشأة به.
-- **عالٍ:** URL destinations تسمح open redirect عامًا؛ لا abuse policy أو domain blocking أو phishing response.
-- **عالٍ:** uploads لا تعرف content sniffing، decompression bombs، SVG sanitization، antivirus، أو image library sandbox.
-- **عالٍ:** public asset URL policy لا تميز public/private ولا signed/static.
-- **متوسط:** username substring blocklist يسبب false positives كبيرة ولا يملك version/rollout/appeal operational flow.
-- **متوسط:** OAuth provider_profile وemail handling يحتاجان minimization/redaction/audit policy.
-- **متوسط:** logs مطلوبة للأحداث الأمنية بلا schema/redaction/retention/access.
-- **متوسط:** CORS وheaders قائمة فقط؛ CSP غائبة رغم GTM.
-- **متوسط:** 404 caching قد يحجب حسابًا أُنشئ حديثًا؛ وقد يسهّل اختلاف timing كشف حالات ما لم تُوحّد المسارات.
+- **التخزين المؤقت والعرض (Rendering + Caching):** ميزانية الانتعاش (Freshness Budget) موثقة رياضيًا بدقة شديدة (`TTL` مشترك بين Edge وRedis عبر حساب `remaining` من أمر `TTL` في Redis) — من أفضل ما قُرئ في هذا التدقيق. لكن هذا يتناقض جوهريًا مع البند 5 (منع Smart Invalidation معماريًا بينما التنفيذ يفرضها) — أي فريق DevOps يعدّ بنية الـ CDN بناءً على "TTL فقط، بلا Purge يدوي" (كما تنص وثيقة السياسة) سيُفاجَأ حين يكتشف أن التطبيق فعليًا يستدعي إبطالًا فوريًا في كل حفظ.
+- **AI + Analysis Session Reuse:** التكامل بين `AIService` و`AnalysisSession` موثّق بدقة استثنائية (المطابقة الثلاثية `input_hash` + `analysis_version` + `output_schema_version`) وهو الأفضل تكاملًا في كامل المستودع.
+- **Social Accounts → Connected Accounts → Rendering:** سلسلة التسليم (Handoff) موثقة بعناية شديدة مع تصحيح ذاتي واضح في الوثائق نفسها (مثال: `profile.block.reference.specification.v1.md` يصحّح صراحة مسودة سابقة كانت تخزّن `block_ids[]` على `ProfileContent`). هذا نمط جيد يجب تكراره في بقية النطاقات المتضاربة.
+- **Storage + AI:** لا يوجد أي تكامل مباشر فعلي بينهما في V1 (AI لا يلمس الأصول الثنائية)، وهذا متسق تمامًا بين كل الوثائق.
 
 ---
 
-## 10. عبارات تبدو واضحة لكنها ليست كذلك
+## 9. المخاطر الأمنية (Security Risks)
 
-| العبارة | لماذا ليست تنفيذية | إعادة الصياغة المطلوبة كقاعدة تنفيذ |
-|---|---|---|
-| «الحذف فوري ونهائي» | البيانات تمسح async وقد تضيع مهمة البدء. | لا تعاد استجابة نجاح حتى تُثبت حالة deletion_requested وoutbox job ذريًا؛ كل auth check يرفضها فورًا؛ terminal state يُراقب. |
-| «الجلسات تبطل لحظة التأكيد» | handler غير متين. | UPDATE sessions وAccount في معاملة واحدة، أو deny كل token عند قراءة account status مع cache آمن. |
-| «كل redirect = event واحد» | retry يكرر الحدث. | job_id/event_id فريد وقيد DB؛ إعادة الإدراج no-op. |
-| «آخر كتابة تفوز» | لا يحمي invariants ولا يخبر العميل بفقد تعديله. | حدد row version، isolation، وما العمليات المسموح أن تكون LWW وما القيود التي يحميها DB. |
-| «التحديث خلال ≤60 ثانية» | طبقتان 60 ثانية. | `edge_age + app_age <= 60` مع headers/TTL محسوبة وpurge للحالات الأمنية. |
-| «Rendering stateless» | Redis cache وrender output موجودان. | عملية التحويل لا تكتب canonical data؛ cache مشتق ذو TTL ومفتاح/version محددين. |
-| «URL صالح» | scheme/host/Unicode/control chars غير مكتملة. | parser واحد؛ allowlist؛ canonical serialization؛ رفض credentials/control chars؛ limits رقمية. |
-| «invalid block is skipped» | يخفي فساد بيانات ويختلف عن رفض persistence. | writes ترفض schema-invalid؛ runtime skips فقط stale/missing references ويسجل code محددًا. |
-| «AI failure returns empty array» | empty قد يعني لا اقتراحات أو outage أو quota. | response union يميز success-empty/disabled/rate_limited/provider_error مع UX contract. |
-| «GTM ID فقط، فلا كود عشوائي» | الحاوية نفسها تحمل كودًا. | GTM user containers غير مسموحة على origin الرئيسي، أو تعمل في sandbox/origin معزول وفق CSP. |
-| «الأصل القديم يصبح orphan» | من يكتشفه ومتى؟ | بعد DB swap تُدرج cleanup job ذريًا؛ scan مصالحة دوري؛ retention وretry محددان. |
-| «one active OutLink» | لا قيد يمنعه. | partial unique index على clickable identity حين status=active. |
-| «format validation» | وثيقة أخرى تطلب existence. | لا I/O خارجي؛ قبول/رفض حتمي من registry version محدد فقط. |
+- **غياب قيم Rate Limiting الفعلية (البند 19)** هو أبرز خطر أمني ملموس.
+- **حالة "blocked" غير المكتملة (البند 9)** تعني أن حماية موثقة معماريًا (منع محاولات متكررة) قد لا تُنفَّذ فعليًا.
+- **عزل GTM Sandbox (`google-tag-manager.specification.v1.md` + APD-007)** من أفضل ما قُرئ أمنيًا: نموذج تهديد صريح وصادق ("Format-validating the Container ID does not and cannot prevent" حقن JavaScript، والحل الفعلي هو الاحتواء عبر iframe معزول بلا `allow-same-origin`) — هذا مثال ممتاز لتوثيق أمني ناضج.
+- **نموذج OAuth (Google/Apple) موثّق بدقة عالية جدًا**: التحقق من `state`/`nonce`/التوقيع/الجمهور/الإصدار كلها موثقة بوضوح مع تعيين واضح للمسؤوليات (المحول Adapter يملك التحقق الخاص بالمزوّد، والنواة Core تملك التحقق العام).
+- **لا يوجد أي تخزين لرموز المزوّد (Provider Tokens)** — سياسة صريحة ومتّسقة عبر كل الوثائق.
+- **القفل الاستشاري (Advisory Locks) لمنع تزامن الحجز** (اسم المستخدم، الكتل) موثّق بعمق ويحل مشكلة تزامن حقيقية بشكل صحيح.
 
 ---
 
-## 11. مخاطر التبسيط المفرط
+## 10. أشياء تبدو واضحة لكنها ليست كذلك (Looks Clear But Isn't)
 
-- **«EventEmitter يكفي V1»** يخفي فجوة durability في أكثر مسار أمني حساسية.
-- **«Last Write Wins»** يخفي lost updates والقيود المتزامنة؛ البساطة هنا تُرحّل الخطأ للمستخدم.
-- **«JSONB يبقي النموذج مرنًا»** يخفي عدم وجود migration/schema/query contracts.
-- **«لا media library»** لا يلغي الحاجة إلى orphan management وupload compensation.
-- **«لا publish workflow»** لا يلغي الحاجة إلى atomic edits، preview داخل المحرر، أو cache invalidation.
-- **«analytics بسيطة»** لا يلغي idempotency، attribution، timezone، retention، ودقة العد.
-- **«AI اختياري»** لا يلغي API/state/schema/security عندما تكون AnalysisSession جزءًا من V1.
-- **«QR واحد»** يخفي معاملة DB+S3 والتوليد والتجديد والتوجيه العام.
-- **«GTM اختياري»** لا يقلل أثره الأمني عندما يُفعّل.
-- **«repository per domain»** لا يحل العمليات العابرة للمجالات؛ بل يجعل المعاملة أصعب إذا لم يوجد coordinator.
-- **«worker retries»** لا يعني idempotency؛ يجب أن يكون لها مفتاح وقيد وحالة.
-- **«الـfrontend يعيد استخدام Zod»** لا يحدد UX state machines أو server/client auth.
+- **"Analytics is observational only"** — صحيح إجمالًا، لكن حقل `account_id` المضاف لـ `link_click` (البند 12) يعني أن التحليلات ليست معزولة تمامًا عن نموذج البيانات الأساسي كما تُوحي الصياغة المعمارية.
+- **"V1 is Always-Live, no drafts"** — صحيح في كل مكان **عدا** `seo.indexing.policy.v1.md` (البند 10)، الذي لا يزال يتحدث عن دورة نشر/مسودة كاملة.
+- **"Hard Delete by default"** — القاعدة المعلنة في `platform/data/data.ownership.and.lifecycle.specification.v1.md` **معكوسة فعليًا** في التنفيذ (البند 2). القاعدة الفعلية المطبَّقة هي: Soft Delete افتراضيًا لكيانات Profile، Hard Delete لكل ما عداها تقريبًا.
+- **"Theme Customization is V1"** — الصياغة في أربع وثائق معتمدة (`theme.customization`, `theme.definition`, `theme.selection`, `design.editor`) توحي بأنها ميزة V1 كاملة، بينما هي معطَّلة بالكامل تنفيذيًا (البند 1). القاعدة النصية الوحيدة الصحيحة عمليًا هي: "اختيار ثيم جاهز فقط، بلا أي تخصيص."
+- **"Smart Cache Invalidation: Not Supported"** — هذه العبارة الصريحة في وثيقة السياسة **خاطئة عمليًا**؛ التنفيذ الفعلي هو بالضبط عكسها (البند 5).
+- **"القرار موثّق في ARCHITECTURE_PR_APPROVAL_DECISIONS.md"** — هذه العبارة تظهر بثقة في `implementation/README.md`، لكنها لا تعني أن *كل* قرار تنفيذي موثّق فعليًا هناك (البند 6) — السجل موجود وحقيقي، لكنه غير مكتمل التغطية.
 
 ---
 
-## 12. نتائج ملفًا بملف، مجمعة حسب المجلد
+## 11. مخاطر التبسيط المفرط (Over-Simplification Risks)
 
-### ملفات الجذر والإعداد
+- **الملف الشخصي الواحد بلا صفحات فرعية**: تبسيط ممتاز ومتسق تمامًا عبر كل الوثائق (لا توجد أي إشارة متناقضة لصفحات فرعية في أي مكان) — هذا مثال جيد على تبسيط ناجح.
+- **"تخصيص الثيم" الموثَّق بتفصيل شديد ثم إلغاؤه بجملة واحدة (البند 1)**: هذا ليس تبسيطًا ناجحًا بل فجوة تواصل — أحد الفريقين (من كتب وثائق Appearance المفصّلة) لم يبلغ الفريق الآخر (من كتب `03-canonical-data-model.md`) بأن النطاق تقلَّص، أو العكس.
+- **حل "AccountDeletionOutbox" (APD-001) لضمان تنفيذ سلسلة الحذف رغم اعتماد EventEmitter غير المضمون**: هذا تبسيط جيد جدًا لمشكلة حقيقية (فشل العملية بين حفظ الحالة وإطلاق الحدث) بحل بسيط (صف واحد + Job كل 30 ثانية) بدل حل مبالغ فيه (Event Sourcing كامل). مثال ممتاز لتبسيط ناجح لم يُضحِّ بالصحة (Correctness).
+- **AI Provider اختياري بالكامل (env-var driven)**: تبسيط جيد يمنع القفل بمزوّد واحد (Vendor Lock)، لكنه يعتمد على ملف `.env.example` غير موجود فعليًا (البند 18) لتحديد القيمة الافتراضية العملية.
 
-- `.claude/settings.local.json` والنسخة تحت `Architecture-Product-Definition/.claude/`: لا تعرفان عقد منتج، لكنهما تؤكدان وجود حالة محلية داخل المستودع؛ لا عائق مباشر.
-- `.gitignore`: واضح كملف منصة توثيقية، لكنه لا يعكس monorepo التنفيذ الموعود.
-- `FULL_REPOSITORY_EXPORT.txt` التاريخي: سجل مهم لتتبع الانحراف؛ يثبت أن نماذج OAuth وQR وAI وGTM والخدمات تغيرت دون migration/decision log موحد.
-- `social.accounts.oauth.boundary.v1.md` التاريخي المحذوف: يفصل OAuth عن Social Accounts ويجعل التخزين/الملكية بصياغة قديمة؛ حذفه لم يُرفق بخريطة استبدال صريحة.
+---
 
-### `account/` — سبعة ملفات
+## 12. النتائج حسب الملف/المجلد (File-by-File Findings)
 
-- `account.model.specification.v1.md`: جيد في تثبيت Account root؛ غير واضح في primary provider وsettings JSON، ويتقاطع مع GTM وQR الحالية.
-- `authentication.policy.v1.md`: يحدد OTP جيدًا؛ يترك block thresholds وtoken contracts للتكوين بلا قيم.
-- `authentication.provider.system.specification.v1.md`: يضيف Google/Apple/provider lifecycle، لكنه يوسع الواقع عن بعض ملفات التنفيذ ويحتاج callback DTOs وstate/nonce/storage.
-- `minime.account.claim.system.specification.v1.md`: يثبت username-first، لكنه يتعارض مع خريطة رحلة تقول create/verify ثم choose username.
-- `username.policy.v1.md` و`username.reserved.and.blocked.lists.v1.md`: قواعد قابلة للبرمجة نسبيًا، لكن إدارة القائمة substring والتحديث التشغيلي غير معرفة.
-- `account.deletion.policy.v1.md`: يعرّف النتيجة جيدًا؛ لا يعرّف آلية تضمنها، ويعتمد على Audit Logs غير منفذة.
+### `implementation/` (14 ملفًا)
+**ما هو موثَّق جيدًا:** كل شيء تقريبًا. هذا أنضج جزء في المستودع بأكمله.
+**ما هو غامض:** مكان تخزين ثابت `MAX_BLOCKS_PER_ACCOUNT` الفعلي في الشيفرة غير محدد صراحة (يُفترض `packages/config` لكن لم يُذكر بالاسم كما ذُكر `themes.ts` و`ai-prompts.ts`).
+**ما يعيق التنفيذ:** لا شيء مباشر — لكنه يحمل كل التناقضات المذكورة في القسم 2 حين يُقارَن بمجلد العمارة.
+**ما يتعارض مع ملفات أخرى:** كل ما ورد في القسم 3.
 
-### `account-management/` — ثلاثة ملفات
+### `Architecture-Product-Definition/account/` و`account-management/`
+**جيد:** نموذج Provider Adapter موثّق بعمق استثنائي عبر ثلاث وثائق متطابقة (`authentication.policy`, `authentication.provider.system`, و`implementation/04-service-contracts.md`).
+**غامض:** حالة "blocked" (البند 9).
+**يعيق التنفيذ:** تناقض نموذج الجلسات بالكامل (البند 4).
+**يتعارض:** حقول ConnectedAccount (البند 15)، أحداث سجل التدقيق (البند 14).
 
-- `connected.accounts.specification.v1.md`: نموذج خفيف جيد؛ يتعارض في فحص الوجود ومعالجة المراجع عند الحذف.
-- `minime.account.management.system.specification.v1.md`: يجمع مسؤوليات كثيرة ويحتوي شرط «cannot be found» المناقض.
-- `audit.logging.policy.v1.md`: يعرّف الحاجة والاحتفاظ، لكنه بلا أي تنفيذ مقابل.
+### `Architecture-Product-Definition/appearance/` (بما فيها `themes/`)
+**جيد:** فصل واضح بين Theme Definition (كتالوج ثابت) وAppearance State (بيانات الحساب).
+**يعيق التنفيذ بشدة:** نظام التخصيص بالكامل (البند 1) — أهم فجوة في كامل التدقيق.
 
-### `analytics/` — ثمانية ملفات
+### `Architecture-Product-Definition/block-styling/`
+**جيد:** نظام Reject-Save (وقت الكتابة) مقابل Reset-To-Inherited (وقت تبديل الثيم) موثّق بدقة نادرة، مع استبعاد صريح لـ Auto-Correct وتبرير فلسفي مقنع.
+**ملاحظة بسيطة:** مثال "Divider: Color, Thickness, Spacing" في `block-style.constraints.specification.v1.md` يخالف الكتالوج المغلق في `block-style.model.specification.v1.md` الذي يمنع أي تخصيص لـ Divider — تناقض توضيحي بسيط لا يؤثر على التنفيذ لأن الكتالوج المغلق هو المرجع الرسمي المعلن.
 
-تعريف metrics والخصوصية متسق عمومًا. العوائق المشتركة: click attribution بلا account_id، CTR عند صفر، timezone وحدود الفترات، rounding، رابط archived/purged في التقارير، واعتماد كامل على أحداث يمكن فقدها أو تكرارها. `analytics.reporting.policy` يريد archived links في التقرير، لكن management API لا يسردها بوضوح.
+### `Architecture-Product-Definition/blocks/` (10 ملفات أنواع الكتل)
+**جيد جدًا:** اتساق كامل 100% بين كل ملف نوع كتلة ونظيره في `implementation/`. لا توجد أي ملاحظة سلبية تُذكر.
 
-### `appearance/` و`appearance/themes/` — تسعة ملفات
+### `Architecture-Product-Definition/out-links/`
+**جيد:** نموذج Clickable State = Out Link Identity موثّق بعمق فلسفي واضح.
+**يعيق التنفيذ جزئيًا:** غياب تعيين `INVALID_IDENTIFIER` لحالة HTTP (البند 20).
 
-الفصل بين content/appearance/rendering موضح جيدًا. غير القابل للتنفيذ: schema الداخلي «implementation-specific»، catalog versions/migrations، fallback «last valid أو default» بلا اختيار، theme retirement، global customizations، والتناقض المباشر حول block overrides.
+### `Architecture-Product-Definition/platform/`
+**جيد جدًا:** `platform.architecture.specification.v1.md` هو أفضل وثيقة تأسيسية في المستودع — يحدد طبقات الحوكمة الأربع (Core Platform Architecture / Product Governance / Implementation Configuration / Deployment Environment) بوضوح يندر وجوده في وثائق معمارية.
+**يعيق التنفيذ:** تعارض سياسة الحذف الافتراضية (البند 2)، خريطة الكيانات مقابل الحقول JSONB (البند 13).
 
-### `block-styling/` — ستة ملفات
+### `Architecture-Product-Definition/public-profile/`
+**يعيق التنفيذ:** تناقض Smart Cache Invalidation (البند 5).
 
-تشرح inheritance/resolution نظريًا، لكنها تفترض property catalog وconstraint evaluator غير معرفين. `Reject Save / Reset / Auto-Correct` خيارات لا سياسة. وجود المجلد كله يتعارض مع تحذير Appearance بعدم بناء هذه الميزة في V1.
+### `Architecture-Product-Definition/qr-code/`
+**ممتاز:** أكثر نطاق في المستودع اتساقًا واكتمالًا (نسخة 1.2 من ثلاث وثائق متطابقة تمامًا فيما بينها ومع التنفيذ). لا توجد أي ملاحظة سلبية.
 
-### `blocks/` — عشرة ملفات
+### `Architecture-Product-Definition/rendering/`
+**ممتاز:** ملف `block.renderers.specification.v1.md` يحيل مباشرة إلى ملفات `implementation/` بالاسم — دليل على مراجعة حديثة ومتعمّدة للتزامن بين الطبقتين.
 
-الأنواع والمضاعفة واضحة. المخاطر: لا أطوال نصوص، لا قيود DB للأنواع المفردة، تناقض Button/OutLink، تناقض Image `image_id` مقابل renderer `url/alt`، وتناقض Title/Textbox `text` مقابل `value`. Social Icons يذكر visibility بلا حقل visibility.
+### `Architecture-Product-Definition/seo/`
+**يعيق التنفيذ:** افتراض دورة نشر/مسودة (البند 10)، واختيار نوع Schema غير القابل للتحقيق (البند 11).
+
+### `Architecture-Product-Definition/settings/`
+**جيد:** نموذج تفويض الملكية للنطاقات الأخرى واضح تمامًا وبلا تناقضات.
+
+### `Architecture-Product-Definition/social-accounts/` و`social-platforms/`
+**ممتاز في التفاصيل:** 12 ملف قواعد منصّة متطابقة البنية تمامًا وخالية من التناقضات.
+**يعيق التنفيذ جزئيًا:** الملف المركزي المتقادم (البند 16)، حقل `source_mode` المفقود (البند 17).
 
 ### `docs/MINIME_V1_PRODUCT_ARCHITECTURE_MAP.md`
+**ممتاز:** هذه الوثيقة تحسم فعليًا كل الأسئلة حول تصنيف النطاقات (مثال: تؤكد أن Rendering نطاق منتج رسمي، ما يحل الالتباس المحتمل من صياغة `platform.architecture.specification.v1.md`).
 
-مفيد كخريطة، لكنه ليس مرجع تنفيذ: رحلة التسجيل مرتبة خلاف claim flow، تعريف AI القديم لا يطابق AnalysisSession الحالي، وادعاء ≤60 ثانية لا يطابق طبقتي cache.
-
-### `integrations/` — ثلاثة ملفات
-
-العزل والفشل الاختياري موضحان، لكن الفرضية الأمنية عن GTM خاطئة تقنيًا. النماذج القديمة deployment-wide والحالية per-account تكشف انتقالًا لم يُستكمل عبر كل العقود.
-
-### `out-links/` — ثمانية ملفات
-
-النموذج والـroute واضحان نظريًا. العوائق: `created` بلا path، 302 مقابل أمثلة 307، event بعد «send»، duplicate retries، status/error 404/410، public_id collision، وغياب transaction مع block changes.
-
-### `platform/ai/` — أربعة ملفات
-
-المبادئ تحمي سلطة المستخدم، لكنها تصف knowledge/memory/decisions ثم تنفي ملكية persistence. الحالة الحالية أضافت AnalysisSession من دون تنظيف كل الجمل القديمة أو تقديم API/output schema.
-
-### `platform/data/` — أربعة ملفات
-
-قواعد ownership مفيدة. الخريطة التاريخية تسجل كيانات لم تعد canonical، وسياسة Hard Delete الافتراضية لا تطابق soft-deleted Blocks. retention يتجنب عمدًا المدد، بينما التنفيذ يحتاجها ولا يحدد كثيرًا منها.
-
-### `platform/events/` — أربعة ملفات
-
-تصر على record-before-deliver والحدث الدائم، لكن implementation لا ينفذ ذلك. جملة «business correctness أعلى من event persistence» لا تعفي المسارات التي تعتمد وظيفيًا على الحدث مثل الحذف.
-
-### `platform/storage/` — أربعة ملفات
-
-فصل binary/metadata جيد. `asset.processing.specification.v1.md` مفقود، وسياسة الأنواع متعارضة، وعقد delivery يتجنب authorization وsigned/public decisions التي يحتاجها التنفيذ. orphan detection بلا job/algorithm.
-
-### `platform/` — ملفان
-
-`platform.architecture` و`platform.interaction` يقدمان مبادئ، لكن best-effort cross-platform order وغياب atomicity يتركان Product Domains مطالبة بحل غير موثق. AI ownership matrix لا يطابق AnalysisSession الحالي.
-
-### `profile-content/` — ثلاثة ملفات
-
-`profile.block.reference` يعرض نموذج مرجعي ثم يجعل `Block.sort_order` الحقيقة؛ `profile.content.lifecycle` يسمح باسم فارغ؛ `profile.content.specification` يمنعه. كما ينسب Design Tokens/Visual Styling إلى Rendering في موضع، بينما Appearance يملكها في مواضع أخرى.
-
-### `public-profile/` — سبعة ملفات
-
-pipeline واضح، لكن cache ordering متناقض: cache policy يقول routing دائمًا قبل cache، request lifecycle يسمح cache قبل retrieval دون تحديد access recheck. error states تحصر 200/404/500 بينما security يفرض 429. reserved routes لا تتطابق آليًا مع username blocked list.
-
-### `qr-code/` — ثلاثة ملفات
-
-تعرف هدفًا ثابتًا وQR واحدًا، لكنها لا تحسم معنى deterministic bytes، ولا transaction/persistence/route/cache/download. النسخة الحالية من data model تجعل `AccountQRCode` مستقلًا، ما يتطلب تحديث كل العبارات القديمة التي تصف QR كحقل Account.
-
-### `rendering/` — ثمانية ملفات
-
-الفصل النظري منظم. العقود الحقلية غير متطابقة مع Blocks، وLayout يقول لا يتحكم بموضع block ثم Presentation ينسب له Block Positioning. Rendering يوصف بأنه ينتج HTML وفي الوقت نفسه Next مسؤول عن الواجهة؛ لا interface بينهما. بعض الملفات تقول renderer لا يتحقق، وأخرى تجعله يعيد null عند malformed URL.
-
-### `seo/` — أربعة ملفات
-
-metadata الأساسية قابلة للبناء في `implementation/12`. ملفات architecture/indexing لا تزال تعتمد حالات نشر/خصوصية غير موجودة. Structured Data يسمح Person/Organization/WebSite بلا profile type. fallback strategy غير محددة. `sameAs` يكشف كل الحسابات المتصلة.
-
-### `settings/` — ثلاثة ملفات
-
-تنظيم واجهة فقط. Connected Accounts يذكر linked identities بينما Security يملك authentication methods، وهو تداخل. لا توجد setting schemas أو routes تفصيلية تغطي الفئات.
-
-### `social-accounts/` — تسعة ملفات
-
-المعالجة offline والحفاظ على نية المستخدم واضحان. المشاكل: النص القديم يقول Social Accounts «stores» ثم الحالي يقول handoff transient؛ registry path خطأ؛ المنصات غير متطابقة مع enum؛ Smart Mode مع identifier واحد لا يحدد ماذا يحدث إذا كان صالحًا لمنصة وغير صالح لأخرى؛ handoff delivery بلا transaction/idempotency.
-
-### `social-accounts/social-platforms/` — اثنا عشر ملفًا
-
-كل ملف قابل للتحويل إلى validator منفرد، لكن لا توجد source code registry واحدة أو tests. Spotify يخفض platform-assigned opaque identifier بلا دليل أن case غير مهم. القواعد عرضة لتغير المنصات ولا توجد version migration للسجلات القديمة.
-
-### `implementation/` — أربعة عشر ملفًا
-
-- `README.md`: عبارة «جاهز للتنفيذ» غير صحيحة أمام التعارضات المثبتة.
-- `01`: التقنية محددة بالاسم لا بالإصدار؛ EventEmitter يناقض event platform؛ AI القديم يقول لا تخزين بينما الحالي يخزن AnalysisSession.
-- `02`: بنية مقترحة وليست repository منفذة؛ لا worker app رغم BullMQ.
-- `03`: أكثر الملفات فائدة، لكنه يحمل JSONB غير محكوم، نقص قيود التزامن، ونموذج AI/QR حديث غير متسق مع كل المراجع.
-- `04`: عقود خدمات واسعة، لكنها تنتهك قاعدة repository ownership عند العمليات العابرة وتترك المعاملات.
-- `05`: يغطي معظم REST، لكنه يفتقد AI، وDTOs غامضة، وpagination غير متسقة، ولا frontend-facing error codes.
-- `06`: صادق بشأن فقد الأحداث، لكنه يبني عليه الحذف والإبطال.
-- `07`: أوضح validation، لكنه يناقض HEIC/GIF ويترك حدودًا أساسية للتكوين أو بلا قيمة.
-- `08`: قائمة أمنية جيدة، لكنها لا تحدد crypto/token/rate policies، ولا تدرك خطر GTM كاملًا.
-- `09`: يحدد المفاتيح، لكنه لا يحقق SLA بوجود طبقتين ولا يبطل edge.
-- `10`: catalog مفيد، لكنه يقبل duplicate clicks ولا يحدد retry numbers/DLQ، وorphan cleanup غامض.
-- `11`: Storage interface مفيد؛ ترتيب replacement خطر؛ AI يناقض نفسه في persistence.
-- `12`: SEO عملي نسبيًا؛ GTM per-account خطر، وsameAs لا يحترم اختيار الظهور.
-- `13`: ليست خطة Frontend كاملة، وأسماء endpoints/services تنحرف عن العقود، وتنسى worker وroute QR.
+### `docs/ARCHITECTURE_PR_APPROVAL_DECISIONS.md`
+**ممتاز كآلية، ناقص كتغطية:** السجل نفسه مصمَّم جيدًا (تنسيق موحّد، تبرير "لماذا هذا ليس إعادة تصميم" لكل قرار)، لكنه لا يغطي خمس حالات انحراف فعلية مكتشفة في هذا التدقيق (البند 6).
 
 ---
 
-## 13. درجة جاهزية التنفيذ
+## 13. درجة جاهزية التنفيذ (Implementation Readiness Score)
 
-**الدرجة الإجمالية: 28/100.**
+**الدرجة الإجمالية: 78 / 100**
 
-| المحور | الدرجة | السبب المختصر |
-|---|---:|---|
-| الخلفية | 34/100 | توجد خدمات ونماذج، لكن المعاملات والمتانة والتزامن غير محسومة. |
-| الواجهة الأمامية | 14/100 | لا state machines ولا route/UX/error contracts تنفيذية. |
-| البيانات | 38/100 | catalog قوي، لكن JSONB والقيود والإسناد والحذف بها فجوات. |
-| الواجهات البرمجية | 31/100 | REST واسع، مع غياب AI وDTO/error/pagination الدقيقة. |
-| الأمن | 22/100 | GTM والجلسات والحذف والرموز ومعدلات الحد تهدد الإنتاج. |
-| الاتساق | 16/100 | تعارضات مباشرة بين canonical/implementation/history. |
-| التشغيل | 20/100 | worker/topology/routing/recovery/migrations غير مكتملة. |
-
-هذه ليست درجة جودة الفكرة؛ إنها درجة قدرة فريق حقيقي على تحويل المستودع إلى إنتاج دون سؤال معماري.
+| المحور | الدرجة | التبرير |
+|---|---|---|
+| Backend | 85/100 | عقود خدمات ونماذج بيانات ناضجة جدًا؛ نقاط ضعف محدودة في Rate Limiting الفعلي وحالة "blocked" |
+| Frontend | 60/100 | فجوة تخصيص الثيم (البند 1) تعني أن تصميمات UI محتملة غير قابلة للتنفيذ كما هي موثقة |
+| Data | 88/100 | الأقوى في المستودع؛ الثغرة الوحيدة الحقيقية هي تعارض Hard/Soft Delete الافتراضي |
+| APIs | 80/100 | شاملة ومتسقة إلى حد كبير؛ فجوة Link Ranking وغموض فلترة الوقت |
+| Security | 82/100 | نموذج OAuth وGTM من الأفضل الذي قُرئ؛ الثغرة الحقيقية الوحيدة هي غياب أرقام Rate Limiting |
+| الاتساق (Consistency) | 65/100 | أكبر نقطة ضعف — خمس تناقضات فعلية غير محلولة بين العمارة والتنفيذ، وسجل حوكمة غير مكتمل التغطية |
+| العمليات (Operations) | 75/100 | خطة تنفيذ من 10 مراحل واضحة؛ نقص ملف `.env.example` الفعلي وقيم تكوين حرجة غير محسومة |
 
 ---
 
-## 14. خطة الإصلاح المطلوبة
+## 14. خطة الإصلاح المطلوبة (Required Fix Plan)
 
-### المرحلة 1 — يجب إصلاحها قبل كتابة أي كود
+### المرحلة 1 — يجب إصلاحها قبل كتابة أي سطر كود
+- حسم تناقض سياسة الحذف الافتراضية (البند 2) رسميًا في `ARCHITECTURE_PR_APPROVAL_DECISIONS.md`.
+- حسم نطاق تخصيص الثيم (البند 1): إما وضع علامة "V2 فقط" صريحة على وثائق `theme.customization`/`theme.definition`/`design.editor`، أو توسيع `implementation/` لدعم مجموعة تخصيص أولية حقيقية.
+- تحديث `account-management/minime.account.management.system.specification.v1.md` لإزالة تناقض نموذج الجلسات (البند 4).
+- تحديث `public-profile/public-profile.cache.policy.v1.md` لإزالة حظر Smart Cache Invalidation (البند 5).
+- تسجيل انعكاس ترتيب سلسلة حذف الحساب كقرار APD رسمي (البند 3).
 
-1. إعلان مرجع أولوية وحيد مع إزالة/وسم العقود المنسوخة والمتعارضة، لا الاكتفاء بكلمة «Canonical» في عدة ملفات.
-2. حسم نموذج التسجيل وQR والمعاملة/التعويض وحالة الحساب.
-3. استبدال مسار الحذف المعتمد على EventEmitter بمسار متين.
-4. حسم Button ↔ OutLink وتحديد المعاملة والقيد.
-5. حسم block styling في V1.
-6. حسم AI entity/API/output schema.
-7. قرار أمني نهائي بشأن GTM لكل مستخدم.
-8. توحيد SocialPlatform registry والـenum.
-9. حل display_name الابتدائي.
-10. تعريف topology الإنتاج: API/Web/Worker/Nginx/Redis/PostgreSQL/S3.
+### المرحلة 2 — يجب إصلاحها قبل تنفيذ Backend
+- تحديد قيم رقمية فعلية لـ Rate Limiting لكل المسارات التسعة (البند 19).
+- إنشاء `.env.example` فعلي بكل القيم الافتراضية المطلوبة (البند 18).
+- حسم حالة "blocked" في المصادقة: تنفيذها فعليًا أو حذفها من الوثيقة (البند 9).
+- إضافة `GET /api/v1/analytics/out-links` لترتيب الروابط (البند 7).
+- تعيين `INVALID_IDENTIFIER` إلى حالة HTTP صريحة (البند 20).
+- تسجيل حقل `account_id` الإضافي في `AnalyticsEvent` كقرار APD (البند 12).
 
-### المرحلة 2 — يجب إصلاحها قبل تنفيذ الخلفية
-
-1. إضافة قيود DB لكل invariant وunion JSON shape الممكنة.
-2. تعريف isolation/locks/retry/idempotency.
-3. تعريف outbox/event durability أو تخفيض ادعاءات الحدث رسميًا.
-4. استكمال token/OAuth/session/rate-limit contracts.
-5. استكمال storage processing والأنواع والحدود وcompensation.
-6. استكمال jobs: schedules، attempts، backoff، timeout، DLQ، reconciliation.
-7. إصلاح analytics attribution ودقة النقر والفترات الزمنية.
-8. تنفيذ أو حذف Audit Logging من التزامات V1.
-9. تعريف edge cache invalidation وSLA مشتركة.
-10. توحيد أسماء الخدمات والمسارات بين `04` و`05` و`13`.
-
-### المرحلة 3 — يجب إصلاحها قبل تنفيذ الواجهة الأمامية
-
-1. نشر route map وstate machines للتسجيل والمحرر وAI وQR.
-2. إصدار DTOs وerror codes مشتركة قابلة للتوليد.
-3. تعريف optimistic concurrency وconflict UX.
-4. تعريف uploads/reorder/accessibility/empty/error/loading states.
-5. تعريف token storage/refresh في Next Server وClient Components.
-6. تعريف dashboard aggregation وanalytics timezone/chart contracts.
-7. تعريف AI polling/reuse/accept semantics.
+### المرحلة 3 — يجب إصلاحها قبل تنفيذ Frontend
+- توثيق خريطة تحويل فلترة الوقت (Today/Last 7/Last 30/All Time ↔ from/to) بدقة (البند 8).
+- تبليغ فريق التصميم رسميًا بالنطاق الفعلي لتخصيص الثيم (تابع للمرحلة 1) قبل بدء أي تصميم شاشات Appearance.
+- حسم مصير حقل `source_mode` (تخزينه أو التخلي عنه نهائيًا) (البند 17).
 
 ### المرحلة 4 — يمكن توضيحها أثناء التنفيذ
-
-1. أسماء classes والملفات الداخلية غير العامة.
-2. اختيار مكتبة تحويل الصور بعد تثبيت عقد المعالجة.
-3. شكل مكونات UI والتفاصيل البصرية التي لا تغير lifecycle.
-4. قيم monitoring dashboards بعد تعريف SLOs الأساسية.
-5. تحسينات query/index التي لا تغير العقود.
+- تحديث `seo/seo.indexing.policy.v1.md` لإزالة افتراض دورة النشر/المسودة (البند 10).
+- حذف أنواع Schema غير القابلة للتحقيق من `seo/seo.structured-data.specification.v1.md` (البند 11).
+- تحديث قائمة أحداث سجل التدقيق (البند 14).
+- توحيد قائمة حقول ConnectedAccount بين الوثيقتين (البند 15).
+- تحديث أو حذف الأقسام المتقادمة في `social.accounts.platform.rules.v1.md` (البند 16).
+- توضيح مكان تخزين `MAX_BLOCKS_PER_ACCOUNT` في الشيفرة.
 
 ---
 
-## 15. التحذير النهائي
+## 15. تحذير نهائي لصاحب المشروع
 
-إلى مالك المشروع: إذا بدأ التنفيذ بهذه الحالة، فلن «يملأ الفريق التفاصيل»؛ سيخترع التفاصيل. مهندس المصادقة سيختار معنىً للتسجيل، ومهندس الملفات سيختار ترتيبًا مختلفًا للاستبدال، ومهندس الواجهة سيخترع حالات المنتج، ومهندس التحليلات سيقبل أرقامًا مكررة، ثم تظهر التناقضات عند الدمج لا عند كتابة الوحدة المنفردة.
+هذا المستودع في وضع أفضل بكثير من الغالبية العظمى من المستودعات التي تصل لهذه المرحلة — طبقة `implementation/` وحدها تمثّل عملًا هندسيًا جادًا يوفر شهورًا من النقاش لو بدأ الفريق بدونها. لكن إن بدأ التنفيذ **اليوم** بدون معالجة البنود الخمسة الحرجة في القسم 2 (تخصيص الثيم، سياسة الحذف الافتراضية، ترتيب سلسلة الحذف، نموذج الجلسات، وSmart Cache Invalidation)، فسيحدث بالتحديد أحد سيناريوهين:
 
-النتيجة المتوقعة هي حسابات نصف منشأة، حذف غير مكتمل، جلسات لا تُبطل دائمًا، روابط بلا تتبع أو بتتبع مضاعف، تحليلات لا يمكن إسنادها، ملفات عامة قديمة، وواجهة تتعامل مع أخطاء لم يتفق backend على أسمائها. الأسوأ أن اختبارات كل فريق قد تنجح لأن كل فريق اختبر تفسيره الخاص.
+**السيناريو الأول (الأرجح):** يعتمد المهندسون على `implementation/` فقط (كما توصي به الوثيقة نفسها عند التعارض المعلن)، فيبنون نظامًا يعمل فعليًا وبشكل صحيح، لكنه **يُعتبر رسميًا مخالفًا للعمارة المعتمدة** في خمس نقاط قابلة للإثبات بمقارنة نصية مباشرة. أي عملية تدقيق تقني خارجي لاحقة (استثمار، امتثال، مراجعة أمنية) ستجد هذا التناقض وستطرح سؤالًا مشروعًا: "إذا كانت العمارة المجمّدة لا تُطابق ما بُني فعليًا في خمس نقاط، فما قيمة تجميدها أصلًا؟"
 
-لا تبدأوا التنفيذ الإنتاجي قبل إغلاق معوقات المرحلة الأولى وتوقيع عقود المرحلة الثانية. عبارة «جاهز للتنفيذ» في `implementation/README.md` ليست حالة هندسية؛ هي ادعاء يناقض الأدلة الموجودة في المستودع نفسه.
+**السيناريو الثاني (الأخطر):** يقرأ أحد المهندسين وثيقة `Appearance/themes/` أو `account-management/minime.account.management.system.specification.v1.md` أولًا (لأنها تصف "المنتج" لا "التنفيذ")، ويبني بناءً عليها مباشرة — فيبني نظام تخصيص ثيم كامل غير مطلوب، أو يحذف واجهات الجلسات المطلوبة فعليًا ظنًّا أنها ممنوعة. هذا هدر وقت حقيقي ومباشر يمكن تفاديه بجلسة مراجعة واحدة لا تتجاوز يومًا كاملين.
+
+الإصلاح المطلوب ليس إعادة تصميم — هو ببساطة **مطابقة نصية بين طبقتين موجودتين بالفعل**، ومعظم القرارات الصحيحة (Soft Delete لـ Blocks، JWT+Refresh، Smart Invalidation) موجودة بالفعل في `implementation/` وصحيحة هندسيًا؛ المطلوب فقط تحديث المصدر المعماري ليعكسها، أو تسجيلها رسميًا في سجل القرارات الموجود أصلًا لهذا الغرض بالتحديد. هذا عمل يوم إلى يومين لمهندس واحد يعرف المستودع، لا مشروعًا جديدًا.

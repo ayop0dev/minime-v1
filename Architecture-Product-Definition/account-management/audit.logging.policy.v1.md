@@ -235,17 +235,18 @@ Implementation may extend this structure.
 
 # Logged Events
 
+**Governing note:** This catalog was corrected during the Phase A architecture-synchronization audit (G-04) to remove events for concepts that do not exist in V1, per the "Operational Purpose Only" principle above. `account_updated` (as a single blanket event), `recovery_email_changed`, `page_*`, and `block_*` events were previously listed here despite no `Recovery Email` concept, no `Page` entity distinct from the single public profile, and no per-block audit event existing anywhere else in the approved V1 architecture or implementation. See `implementation/03-canonical-data-model.md` — `AuditLog` — "Logged Event Catalog," which already reflected this correction; this document is now updated to match it directly rather than only in the implementation layer.
+
 ## Account Events
 
 The system should log:
 
 ```text
 account_created
-account_updated
 account_deleted
 ```
 
-where applicable.
+`account_updated` is not logged as a single blanket event in V1 — `Account.settings` mutations are not individually itemized, since `settings` in V1 has exactly one field (`gtm_container_id`); see `account/account.model.specification.v1.md` and `implementation/03-canonical-data-model.md` — `Account.settings`.
 
 ---
 
@@ -257,8 +258,9 @@ The system should log:
 authentication_method_added
 authentication_method_removed
 primary_identity_changed
-recovery_email_changed
 ```
+
+`recovery_email_changed` is not a V1 event. There is no Recovery Email concept in V1 — authentication is provider-based only (`account/authentication.policy.v1.md`).
 
 ---
 
@@ -286,31 +288,7 @@ bio_updated
 contact_information_updated
 ```
 
----
-
-## Page Events
-
-The system should log:
-
-```text
-page_created
-page_updated
-page_deleted
-page_reordered
-```
-
----
-
-## Block Events
-
-The system should log:
-
-```text
-block_created
-block_updated
-block_deleted
-block_reordered
-```
+Block create/update/delete/reorder events (`block_created`, `block_updated`, `block_deleted`, `block_reordered`) are **not** logged individually in V1. There is no Page entity distinct from the single public profile in V1 (no `page_created`/`page_updated`/`page_deleted`/`page_reordered` events exist). Block-level changes are Product Data changes already fully covered by the `Block` row's own `updated_at`/`sort_order` history, not audit-logged individually — this is consistent with the "Operational Purpose Only" principle: audit logging scope in V1 is limited to identity, access, and account-lifecycle events, not general content editing history.
 
 ---
 

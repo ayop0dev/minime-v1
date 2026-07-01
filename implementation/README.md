@@ -2,9 +2,17 @@
 
 ## Status
 
-**Implementation blockers resolved per `FULL_STACK_IMPLEMENTATION_BLOCKERS_AUDIT.md`.**
+**Implementation specifications are approved for V1.**
 
-The 20 critical/high implementation blockers, the cross-domain conflict table, and the missing-contract inventory identified by that audit have been addressed by architectural clarification (not redesign) — see `IMPLEMENTATION_BLOCKERS_RESOLUTION_REPORT.md` at the repository root for the full file-by-file account of what changed and why. Specification documents in this directory are not self-certifying; do not restate "ready for implementation" here without re-running the audit against the current state of the repository.
+The 20 critical/high implementation blockers, the cross-domain conflict table, and the missing-contract inventory identified by the prior blockers audit have been addressed by architectural clarification (not redesign). The specific implementation-enabling engineering decisions produced by that resolution pass — and every decision approved since — are recorded in the canonical registry:
+
+```
+ARCHITECTURE_PR_APPROVAL_DECISIONS.md
+```
+
+at the repository root. Those decisions are implementation-enabling only: they make the frozen architecture concrete enough to build against (entities, background jobs, deployables, repository contracts, transaction coordinators, advisory locks, unique indexes, security boundaries). They are not product redesign, do not expand product scope, and do not introduce a new Product Domain. Any future addition of this kind requires a new architecture approval recorded in that registry before implementation proceeds — see "Post-Freeze Clarification Policy" below.
+
+Specification documents in this directory are not self-certifying; do not restate "ready for implementation" here without re-running consistency verification against the current state of the repository.
 
 ---
 
@@ -21,6 +29,31 @@ Architecture-Product-Definition/docs/MINIME_V1_PRODUCT_ARCHITECTURE_MAP.md
 When any implementation statement conflicts with the frozen architecture, the architecture wins.
 
 Do not modify the architecture folder.
+
+---
+
+## Post-Freeze Clarification Policy
+
+The frozen architecture may receive implementation-enabling clarifications only.
+
+A clarification:
+
+- must remain minimal — it makes an already-approved rule concrete enough to implement, nothing more;
+- must not expand product scope;
+- must not redesign architecture, rename existing concepts, remove existing architecture, or introduce a new Product Domain.
+
+If a clarification introduces any of the following, it must be explicitly recorded in `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` before or alongside its introduction:
+
+- an entity
+- a background job
+- a deployable
+- a repository contract
+- a transaction coordinator
+- an advisory lock
+- a unique index
+- a security boundary
+
+A clarification of this kind that is not recorded in that registry is not approved for implementation, regardless of where else in the repository it appears.
 
 ---
 

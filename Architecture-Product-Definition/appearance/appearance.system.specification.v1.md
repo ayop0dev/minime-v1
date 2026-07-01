@@ -4,6 +4,10 @@
 
 Approved
 
+## V1 Scope Notice
+
+This document describes the Appearance system's full architectural responsibility, including Theme Customization, which is **V2 Scope** in V1 (see `themes/theme.customization.specification.v1.md` and `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` — APD-011). V1 Appearance responsibility is limited to Theme Library integration, Theme selection, Theme constraints (as they govern V1 block-level style overrides), and Appearance State persistence of `selected_theme_id`. Everywhere this document says "Theme Customization" as a current capability, read it as the V2 target design.
+
 ---
 
 # Purpose
@@ -120,14 +124,14 @@ Those responsibilities belong to Rendering.
 
 Appearance is responsible for:
 
-* Theme Library integration
-* Theme selection
-* Theme customization
-* Theme constraints
-* Appearance State
-* Visual configuration
+* Theme Library integration (V1)
+* Theme selection (V1)
+* Theme constraints (V1, as they govern block-level style overrides; theme-wide customization limits are V2 Scope)
+* Appearance State (V1: Theme selection only; V2: also customization)
+* Visual configuration (V1: via Theme selection and block-level overrides only)
 * Visual consistency
 * Appearance validation
+* Theme customization (V2 Scope)
 
 Appearance is responsible only for visual configuration.
 

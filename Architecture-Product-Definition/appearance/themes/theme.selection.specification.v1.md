@@ -1,5 +1,11 @@
 # Theme Selection Specification V1
 
+## Status
+
+**V1 Status:** Theme *selection* (this document's core subject) is real, approved V1 behavior. Every reference in this document to Theme *customization* is **V2 Scope** — see `theme.customization.specification.v1.md` and `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` (APD-011). In V1, `appearance_config.customizations` is always `{}`, so any pipeline step below described as acting on "customization values" is a no-op in V1: it always resolves to the Theme's own unmodified defaults.
+
+---
+
 ## Context
 
 Theme selection is the mechanism by which a profile's Appearance State acquires a Theme reference.
@@ -54,8 +60,8 @@ There is no theme-less profile state.
 The Appearance State (stored per profile) contains:
 
 ```text
-selected_theme_id
-theme customization values
+selected_theme_id           (V1)
+theme customization values  (V2 Scope — always empty in V1)
 ```
 
 Profile ownership is via account_id.
@@ -95,7 +101,7 @@ Available (in catalog)
         ↓
 Selected / Active
         ↓
-Customized (optional)
+Customized (optional — V2 Scope, not reachable in V1)
         ↓
 Switched (when replaced)
 ```
@@ -132,7 +138,7 @@ One Profile = One Active Theme
 
 ---
 
-## State: Customized
+## State: Customized (V2 Scope — not reachable in V1)
 
 The user modifies Theme customization values within the Appearance State.
 
@@ -226,7 +232,9 @@ Constraints
 
 ---
 
-## Step 2 — Apply Customization
+## Step 2 — Apply Customization (V2 Scope — no-op in V1)
+
+In V1 this step always applies zero customization values, because `appearance_config.customizations` is always `{}`; the resolved output for this step in V1 is identical to Step 1's output. The following describes the V2 target behavior once customization is implemented.
 
 Profile-level customization values from the Appearance State are applied.
 
@@ -278,7 +286,7 @@ This is consumed by the Renderer.
 
 ---
 
-## Theme Change Behavior
+## Theme Change Behavior (V2 Scope — not reachable in V1, since V1 has no customization values to change)
 
 When Theme customization values change:
 
@@ -406,6 +414,7 @@ The Renderer always consumes the latest resolved Appearance State.
 ## Not Supported In V1
 
 ```text
+Theme Customization (all forms — see theme.customization.specification.v1.md, V2 Scope)
 Multiple Active Themes Per Profile
 Page-Level Themes
 Sub Page Themes
@@ -430,7 +439,7 @@ Minime Is Always-Live — No Preview / Live Split
 
 Theme Definition Provides Defaults
 
-Customization Is Stored In Appearance State
+appearance_config.customizations Is Always {} In V1 — No Customization Exists To Resolve
 
 Resolution Is Deterministic
 
@@ -441,4 +450,10 @@ Invalid Values Are Rejected Before Rendering
 Profiles Always Have An Active Theme
 
 account_id Is The Ownership Identifier
+```
+
+## V2 Principles (Target Design, Not Yet Implemented)
+
+```text
+Customization Is Stored In Appearance State
 ```

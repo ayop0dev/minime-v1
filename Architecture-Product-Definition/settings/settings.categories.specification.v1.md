@@ -88,8 +88,8 @@ Responsible for visual configuration.
 
 Examples include:
 
-* Theme selection
-* Visual customization
+* Theme selection (V1)
+* Visual customization (V2 Scope — see `appearance/themes/theme.customization.specification.v1.md` and `ARCHITECTURE_PR_APPROVAL_DECISIONS.md` — APD-011)
 * Appearance preferences
 
 ---
