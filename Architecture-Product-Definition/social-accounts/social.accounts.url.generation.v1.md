@@ -323,4 +323,4 @@ The URL Generation engine is a pure, deterministic transformation component.
 
 It combines a normalized social account identifier with a platform-defined URL template to produce a canonical public profile URL.
 
-It performs no validation, discovery, verification, or communication with external services.
+Its behavior is fully described by this single transformation. Nothing beyond it occurs.

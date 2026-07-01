@@ -196,15 +196,15 @@ Operational Events usually have shorter usefulness.
 
 ## Analytics Events
 
-Examples:
+V1 examples:
 
 ```text
 Profile Viewed
 
 Out Link Clicked
-
-QR Code Scanned
 ```
+
+QR Code Scanned is not a V1 analytics event. QR Code never participates in analytics or scan tracking in V1.
 
 Analytics Events may be aggregated after collection.
 

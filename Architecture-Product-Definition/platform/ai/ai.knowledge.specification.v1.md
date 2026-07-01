@@ -438,7 +438,7 @@ Existing User Decision (V2 — no suggestion history in V1)
 
 ↓
 
-Cached Analysis Result (input hash match within AI_CACHE_TTL_SECONDS)
+Existing Completed Analysis Session (Input Hash, Analysis Version, and Output Schema Version Match)
 
 ↓
 
@@ -459,7 +459,7 @@ Large Model
 
 Every reused knowledge item avoids unnecessary inference.
 
-In V1, the primary cost optimization is input-hash caching: identical profile state within the cache TTL returns the previous Analysis Session result without a new `Provider.execute(...)` call.
+In V1, the primary cost optimization is Analysis Session Reuse: identical profile state (Input Hash match), combined with a matching `analysis_version` and `output_schema_version`, reuses the latest completed Analysis Session result without a new `Provider.execute(request)` call. Reuse never depends on elapsed time.
 
 ---
 
@@ -504,7 +504,7 @@ The objective is not to perform more AI reasoning.
 
 The objective is to need less AI reasoning over time.
 
-In V1, the primary mechanism for reducing unnecessary inference is input-hash caching: when the user's profile state has not changed since the last Analysis Session, the previous result is returned without executing a new `Provider.execute(...)` call.
+In V1, the primary mechanism for reducing unnecessary inference is Analysis Session Reuse: when the user's profile state has not changed since the last Analysis Session (Input Hash match) and Minime's `analysis_version` and `output_schema_version` are unchanged, the latest completed Analysis Session is returned without executing a new `Provider.execute(request)` call.
 
 Cross-session knowledge accumulation (learning from accepted and rejected suggestions) is V2 scope. In V2, every verified user decision and every confirmed pattern increases the platform's reusable knowledge, allowing Minime to deliver better intelligence with lower cost and greater consistency.
 

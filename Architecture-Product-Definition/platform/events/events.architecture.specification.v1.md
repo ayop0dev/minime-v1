@@ -679,6 +679,12 @@ Those belong elsewhere.
 
 ---
 
+# V1 Scope Note
+
+This specification describes the Events Platform's architectural shape wherever a Product Domain needs it. Whether the persistence/observability tier described above is actually implemented in a given version is a scoping decision made in the implementation layer, not a mandate that every version must build an event store. See `implementation/06-event-contracts.md` — "V1 Event Durability Classification" for Minime V1's specific scope decision (no event store; events are best-effort in-process notifications; durability for business-critical outcomes is achieved through domain-owned Product Data, never through this platform). This note does not change any Canonical Rule below.
+
+---
+
 # Canonical Rules
 
 The following rules define the Events Platform.

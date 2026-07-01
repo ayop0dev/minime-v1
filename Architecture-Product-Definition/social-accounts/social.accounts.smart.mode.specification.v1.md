@@ -18,6 +18,42 @@ It is **not** a discovery feature.
 
 ---
 
+# Canonical Definition
+
+This section is the single canonical definition of Smart Mode. Every other Social Accounts document refers back to this section rather than redefining Smart Mode.
+
+Smart Mode is only an input convenience.
+
+Its purpose is reducing manual typing.
+
+It may:
+
+* extract usernames
+* identify the platform from the provided input
+* normalize input
+* generate canonical URLs
+
+It must never:
+
+* perform inference
+* perform discovery
+* search for accounts
+* verify accounts
+* communicate with external systems
+* call platform APIs
+* execute HTTP requests
+* scrape websites
+* maintain state
+* execute background work
+
+Smart Mode changes only how the user provides input.
+
+It never changes the processing pipeline.
+
+Both Manual Mode and Smart Mode produce the exact same canonical handoff record.
+
+---
+
 # Design Goal
 
 The primary objective is to eliminate repetitive typing.
@@ -377,4 +413,4 @@ Smart Mode is a username and URL automation mechanism.
 
 It extracts, normalizes, and reuses a user-provided identifier to generate standardized public social profile URLs.
 
-It never performs account discovery, platform communication, account verification, or account existence validation.
+Its full scope and constraints are defined by the Canonical Definition above.

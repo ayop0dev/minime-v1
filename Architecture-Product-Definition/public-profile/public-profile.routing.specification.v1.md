@@ -102,6 +102,7 @@ The following routes are reserved for the platform:
 /admin
 /api
 /out
+/qr
 ```
 
 These routes must never be interpreted as usernames.
@@ -234,6 +235,50 @@ Routing still resolves:
 ```
 
 Query parameters do not affect routing decisions.
+
+---
+
+# QR Code Redirect Route
+
+V1 supports exactly one additional public route for QR Code resolution:
+
+```text
+https://minime.ae/qr/{qr_code_id}
+```
+
+This route is owned by the Account domain's QR Code System (`Architecture-Product-Definition/qr-code/qr-code.system.specification.v1.md`), not by the username routing model.
+
+Rules:
+
+```text
+The route parameter is qr_code_id, never username.
+qr_code_id must resolve the QR Code record.
+The QR Code record must resolve account_id.
+account_id must resolve the Account's current username by reading the Account record live — never from a value stored on the QR Code record.
+The route must redirect (HTTP redirect) to /{username}.
+The route must never render a separate public profile page.
+The route must never expose internal Account data.
+```
+
+The canonical resolution flow is:
+
+```text
+qr_code_id
+↓
+AccountQRCode
+↓
+account_id
+↓
+Account.username
+↓
+Redirect to /{username}
+```
+
+The QR Code record never stores `username` or a username snapshot; this flow always reads the current value from the Account record.
+
+If the QR Code record does not exist, belongs to a deleted Account, or cannot resolve to an active public profile, the route must fail safely per `public-profile.error.states.v1.md` — it must never redirect to a partial, internal, or non-existent destination.
+
+This route must never be interpreted as a username request, and `qr_code_id` must never be confused with `username`.
 
 ---
 

@@ -269,6 +269,26 @@ Each block type uses only relevant properties.
 
 ---
 
+# Closed Property Catalog (V1)
+
+`style_overrides` is validated against a closed JSON schema, one per block type. A key not listed for that block type is rejected — there is no open/extensible property set in V1. The exact allowed value for each key is a value permitted by the active Theme's constraints for that key (see `theme.constraints.specification.v1.md`); this table defines which keys exist per block type, not their numeric ranges (ranges are Theme-owned and configurable per Theme, per "Theme Owns Defaults / Block Owns Overrides").
+
+| Block type | Allowed `style_overrides` keys | Value domain |
+|---|---|---|
+| `button` | `background_color`, `text_color`, `border_color`, `radius`, `shadow`, `alignment` | colors: hex string; `radius`: one of `0px`\|`8px`\|`16px`\|`24px`; `shadow`: one of `none`\|`soft`\|`medium`\|`strong`; `alignment`: one of `left`\|`center`\|`right` |
+| `image` | `radius`, `shadow`, `alignment` | same domains as above |
+| `avatar` | `radius`, `shadow` | same domains as above (no `alignment` — avatar position is fixed by Layout, not Block Styling) |
+| `name` | `text_color`, `font_size`, `font_weight`, `alignment` | `text_color`: hex string; `font_size`: one of `small`\|`medium`\|`large`; `font_weight`: one of `normal`\|`bold`; `alignment`: one of `left`\|`center`\|`right` |
+| `bio` | `text_color`, `font_size`, `alignment` | same domains as `name`, minus `font_weight` |
+| `title` | `text_color`, `font_size`, `font_weight`, `alignment` | same domains as `name` |
+| `textbox` | `text_color`, `font_size`, `alignment` | same domains as `bio` |
+| `divider` | (none) | Divider has no visual overrides in V1 — `style_overrides` must be empty/null for this block type |
+| `social_icons` | `icon_color`, `alignment` | `icon_color`: hex string; `alignment`: one of `left`\|`center`\|`right` |
+
+`background`, `border` (width/style, distinct from `border_color`), `line_height`, `font_family`, and `spacing` (padding/margin/gap) described conceptually above are **not** part of the V1 closed catalog for any block type — they remain architectural categories reserved for a future version, not V1-implementable keys. Submitting them in `style_overrides` is rejected as an unknown key, per `04-service-contracts.md` and `07-validation-rules.md`.
+
+---
+
 # Empty Style Object
 
 Blocks may have no overrides.

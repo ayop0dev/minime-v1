@@ -146,11 +146,16 @@ In V1, the only AI capability is "Analyze My Profile" — an on-demand Analysis 
 
 An Analysis Session:
 - Is triggered only when the user explicitly requests analysis
-- Reads current account state (profile, blocks, connected accounts, analytics summary)
-- Passes context to `AIService.analyzeProfile`, which delegates to a single `Provider.execute(...)` call
+- Builds the Analysis Input Snapshot from current account state (profile, blocks, connected accounts, analytics summary)
+- Computes an Input Hash from that snapshot
+- Reuses the latest completed Analysis Session for the account when its Input Hash, `analysis_version`, and `output_schema_version` all match the current configured values (Analysis Session Reuse)
+- Otherwise passes the snapshot to `AIService.analyzeProfile`, which delegates to a single `Provider.execute(request)` call
 - Returns profile improvement suggestions for user review
 - Does not modify any business data
-- Returns a cached result if account state is identical to a recent request (input hash match)
+
+Analysis Session validity depends only on whether the Input Hash, `analysis_version`, and `output_schema_version` all match. Time elapsed since the last Analysis Session never determines whether a new analysis is required. Retention policies may still use time to govern how long Analysis Sessions are kept, but time never decides analysis validity.
+
+If the Input Hash matches but `analysis_version` or `output_schema_version` differs, the existing Analysis Session must not be reused — a new Analysis Session is created. `analysis_version` and `output_schema_version` are owned by Minime, never by the AI Provider. They are not model versions and not provider versions; changing the configured Provider or Model never changes them automatically.
 
 The following are explicitly outside V1 scope and must not be implemented:
 
@@ -161,7 +166,153 @@ The following are explicitly outside V1 scope and must not be implemented:
 - AI chat or conversational flows
 - Implicit AI triggers from platform events
 
-`AIService` is the single application entry point for AI. `Provider.execute(...)` is the single execution boundary. One Provider and one Model are active at runtime.
+`AIService` is the single application entry point for AI. `Provider.execute(request)` is the single execution boundary. One Provider and one Model are active at runtime — both are selected exclusively by the configured Provider; `AIService` never selects, names, or switches models or providers.
+
+---
+
+# Analysis Session
+
+The Analysis Session is an official V1 platform entity — not merely a response payload. It is a persisted record of one profile analysis execution.
+
+Conceptual structure:
+
+```text
+AnalysisSession = {
+  id
+  account_id
+  input_hash
+  analysis_version          // semantic version string, e.g. "1.0.0"
+  output_schema_version     // semantic version string, e.g. "1.0.0"
+  status
+  provider_key              // diagnostic metadata only
+  model_key                 // diagnostic metadata only
+  report
+  scores
+  suggestions
+  recommendations
+  metadata
+  created_at
+  completed_at
+}
+```
+
+Rules:
+
+- An Analysis Session belongs to exactly one Account.
+- An Analysis Session is created only after an explicit "Analyze My Profile" user request.
+- An Analysis Session represents one profile analysis execution.
+- A completed Analysis Session stores one completed AI analysis result.
+- Multiple Analysis Sessions may exist for one Account.
+- Only completed Analysis Sessions may be reused. Failed Analysis Sessions must never be reused.
+- The latest completed Analysis Session whose Input Hash, `analysis_version`, and `output_schema_version` all match the current configured values (exact string match) is the reusable result. A mismatch in any one of the three means the existing Analysis Session must not be reused.
+- `analysis_version` is a semantic version string (`MAJOR.MINOR.PATCH`, e.g. `"1.0.0"`) identifying the version of Minime's own analysis business logic (prompt meaning, scoring logic, recommendation logic, structured output interpretation, analysis input rules). It changes only when that business meaning changes — never when the configured Provider or Model changes.
+- `output_schema_version` is a semantic version string (`MAJOR.MINOR.PATCH`, e.g. `"1.0.0"`) identifying the structured output schema Minime uses to validate and store the AI response. It changes only when the output JSON structure changes — never when the configured Provider or Model changes.
+- `provider_key` and `model_key` are diagnostic metadata only — recorded for debugging, support, monitoring, cost analysis, provider performance review, and incident investigation. They must never participate in Analysis Session Reuse, analysis validity, AI output validation, or any business decision.
+- A change to the configured Provider or Model never invalidates an existing Analysis Session by itself. If a Provider or Model change must invalidate prior sessions, that intent must be expressed explicitly by incrementing `analysis_version` or `output_schema_version` — never inferred from `provider_key` or `model_key`.
+- Analysis Session history is not AI learning. Analysis Sessions are stored reports only. Accepted suggestions, rejected suggestions, and learned preferences remain V2 scope.
+
+---
+
+# Analysis Input Snapshot
+
+The Analysis Input Snapshot is the canonical, deterministic set of account-owned data used to generate the Input Hash and the `AIProviderRequest`. It is the only approved V1 source of AI analysis input. Full field-level definition: `implementation/11-platform-services.md`.
+
+The snapshot must include only V1-approved analysis inputs (account identity, profile content, connected accounts, blocks, appearance, analytics summary).
+
+The snapshot must never include:
+
+- Transient UI state
+- Runtime cache data
+- Sessions
+- Audit logs
+- Provider output
+- Previous Analysis Sessions
+- Accepted or rejected AI suggestions
+- Learned preferences
+
+The snapshot is generated exclusively by `AIService`. Product Domains must not provide custom ad-hoc AI context. The snapshot must be normalized before hashing so that any change to its content — and only a change to its content — produces a different Input Hash.
+
+---
+
+# V1 Execution Flow
+
+```text
+User clicks "Analyze My Profile"
+
+↓
+
+AIService.analyzeProfile(account_id)
+
+↓
+
+Build Analysis Input Snapshot
+
+↓
+
+Generate Input Hash
+
+↓
+
+Find latest completed Analysis Session matching account_id, input_hash, analysis_version, output_schema_version
+
+↓
+
+Matching session found?
+
+↓
+
+YES → Reuse Analysis Session
+
+NO  → Create requested Analysis Session
+
+      ↓
+
+      Build AIProviderRequest
+
+      ↓
+
+      Provider.execute(request)
+
+      ↓
+
+      Configured Provider
+
+      ↓
+
+      Configured Model
+
+      ↓
+
+      Validate structured output against current output_schema_version
+
+      ↓
+
+      Persist completed Analysis Session
+
+↓
+
+Return Analysis Session
+```
+
+---
+
+# Failure Flow
+
+```text
+Provider failure OR structured output does not conform to current output_schema_version
+
+↓
+
+Mark Analysis Session as failed
+
+↓
+
+Return safe advisory response
+
+↓
+
+Never modify Product Domain data
+```
 
 ---
 
@@ -355,7 +506,7 @@ The AI Platform minimizes cost through architecture rather than infrastructure.
 Preferred order:
 
 ```text
-Reuse Cached Analysis Result (input hash match within AI_CACHE_TTL_SECONDS)
+Reuse Existing Completed Analysis Session (Input Hash, Analysis Version, and Output Schema Version Match)
 
 ↓
 
@@ -380,7 +531,7 @@ Large Model
 
 Escalation occurs only when additional intelligence justifies additional cost.
 
-In V1, cost scales with the number of explicit "Analyze My Profile" requests. Each Analysis Session executes one `Provider.execute(...)` call. Cache hits avoid inference entirely.
+In V1, cost scales with the number of explicit "Analyze My Profile" requests that produce a new Analysis Session. Each new Analysis Session executes one `Provider.execute(request)` call. Analysis Session Reuse avoids inference entirely whenever the Input Hash, `analysis_version`, and `output_schema_version` all match.
 
 ---
 
@@ -517,6 +668,11 @@ The AI Platform follows these rules.
 8. AI consumption should be minimized through architecture.
 9. AI remains provider-independent.
 10. The user remains the single source of truth.
+11. Analysis Session validity depends only on Input Hash, `analysis_version`, and `output_schema_version` all matching. Time never determines whether a new analysis is required.
+12. The configured Provider exclusively owns model selection. AIService never selects, names, or switches models.
+13. The Analysis Input Snapshot is the only approved V1 source of AI analysis input. It is generated exclusively by AIService and must be deterministic.
+14. `analysis_version` and `output_schema_version` are semantic version strings owned by Minime, never by the AI Provider, and are never changed by a Provider or Model change.
+15. `provider_key` and `model_key` are diagnostic metadata only. They must never participate in Analysis Session Reuse, analysis validity, or any business decision.
 
 ---
 

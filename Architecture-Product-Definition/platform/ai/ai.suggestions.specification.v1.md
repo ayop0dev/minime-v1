@@ -121,7 +121,7 @@ Context Constructed (profile, blocks, connected accounts, analytics summary)
 
 ↓
 
-AIService.analyzeProfile → Provider.execute(...)
+AIService.analyzeProfile → Provider.execute(request)
 
 ↓
 
@@ -341,7 +341,7 @@ Model selection remains an implementation decision.
 The AI Platform minimizes suggestion cost by following this order.
 
 ```text
-Existing Suggestion (cached/in-session)
+Existing Suggestion (Analysis Session Reuse / in-session)
 
 ↓
 
@@ -362,7 +362,7 @@ Large Model
 
 Escalation occurs only when necessary.
 
-**Note:** "Existing User Decision" as a reuse source is outside V1 scope (no suggestion history is persisted in V1). Cached or in-session suggestions may still be reused within a single session.
+**Note:** "Existing User Decision" as a reuse source is outside V1 scope (no suggestion history is persisted in V1). Suggestions from the latest completed Analysis Session whose Input Hash, `analysis_version`, and `output_schema_version` all match (Analysis Session Reuse), or generated earlier in the same session, may still be reused.
 
 ---
 

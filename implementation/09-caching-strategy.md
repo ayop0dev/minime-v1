@@ -70,7 +70,9 @@ These two layers are independent. The edge cache operates at HTTP level. The app
 
 **Profile update behavior:**
 
-Immediate cache purge is not required in V1. The platform relies on short TTL expiration (60 seconds) to refresh content naturally. Maximum expected staleness after a profile update: 60 seconds.
+Immediate cache purge is not required in V1. The platform relies on short TTL expiration to refresh content naturally.
+
+**Combined freshness budget (edge + application) is 60 seconds total, not 60 seconds per layer.** The two layers do not each independently get a fresh 60-second window — see "Freshness Budget Propagation" below for the mechanism. Maximum expected staleness after a profile update: 60 seconds, end to end.
 
 **What edge cache does not store:**
 
@@ -94,6 +96,17 @@ Application memory must not become a shared cache.
 | `profile:content:{account_id}` | Assembled profile content (ProfileContent + Blocks + ConnectedAccounts) | 60 seconds |
 
 These are the only two approved Redis cache keys for profile rendering. There is no `profile:rendered:{profileId}` or `profile:content:{profileId}` — `profileId` does not exist in V1.
+
+### Freshness Budget Propagation
+
+Layer 1 (Edge) and Layer 2 (Redis) do not each get an independent, fresh 60-second window — that would allow up to ~120 seconds of total staleness (a Redis entry served at 59 seconds old, then cached at the edge for another fresh 60). Instead, the two layers share one 60-second budget per render:
+
+1. When `profile:public:{username}` is written to Redis, the write is a plain `SET key value EX 60` — Redis's own TTL mechanism is the single source of remaining freshness; no separate `cached_at` field is stored.
+2. Every time the rendering HTTP handler serves a response — whether it just computed the render fresh or read `profile:public:{username}` from Redis — it calls `TTL profile:public:{username}` to read the key's remaining seconds (`remaining`, an integer from 0 to 60; a fresh write yields `remaining = 60`).
+3. The HTTP response sets `Cache-Control: public, max-age={remaining}` using that value, not a hardcoded `max-age=60`. If `remaining` is 20 (the Redis entry is 40 seconds into its life), the edge is told to cache for at most 20 more seconds.
+4. This guarantees `edge_age + app_age <= 60` at all times: the edge never extends the budget past what the application cache entry had left.
+
+This requires no new infrastructure — it is a computed header value using Redis's existing `TTL` command, not a new cache layer or invalidation mechanism.
 
 ### Cache Key Format
 
@@ -142,7 +155,8 @@ Invalidation triggers (from `04-service-contracts.md` and `05-api-contracts.md`)
 | `updateConnectedAccount` | Invalidate `profile:public:{username}` + `profile:content:{account_id}` |
 | `removeConnectedAccount` | Invalidate `profile:public:{username}` + `profile:content:{account_id}` |
 | `reorderConnectedAccounts` | Invalidate `profile:public:{username}` + `profile:content:{account_id}` |
-| Account deleted | Invalidate both cache keys for the deleted account |
+| `updateAccountSettings` (when `gtm_container_id` changes) | Invalidate `profile:public:{username}` — the GTM sandboxed iframe (`12-seo-and-integrations.md`) is embedded in the cached public HTML response, so a container ID change must not wait out the full TTL before taking effect on the public page. Other `Account.settings` fields (none exist beyond `gtm_container_id` in V1 — see `03-canonical-data-model.md`) would follow the same rule if added. |
+| Account deleted or suspended | Invalidate both cache keys for the account, plus the `account:status:{account_id}` key (`08-security-model.md` — "Per-Request Account Status Check") |
 
 **Publication changes are not a trigger.** Minime V1 has no publishing workflow.
 

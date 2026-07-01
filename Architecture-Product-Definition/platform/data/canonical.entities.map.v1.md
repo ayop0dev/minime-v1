@@ -182,13 +182,12 @@ The following entities form the canonical data map for V1.
 | Theme Selection            | Profile            | Account                                 | Yes                            | Partially         |
 | Connected Account          | Connected Accounts | Account                                 | Yes                            | Yes               |
 | Social Platform Definition | System             | System                                  | Yes                            | Yes               |
-| Platform Authorization     | Connected Accounts | Account                                 | No                             | No / Future       |
 | Out Link                   | Out Links          | Account                                 | Yes                            | Public route only |
 | QR Code                    | Account            | Account                                 | Yes                            | Public route only |
 | Analytics Event            | Analytics / Events | System, account-scoped where applicable | Yes                            | No                |
 | Analytics Aggregate        | Analytics          | System, account-scoped where applicable | Derived                        | No                |
 | Stored Asset Metadata      | Storage            | Account or System                       | Yes                            | No                |
-| AI Suggestion              | AI                 | Account-scoped                          | Temporary / Optional Canonical | No                |
+| AnalysisSession             | AI                 | Account-scoped                          | Yes (see §22)                  | No                |
 | Render Object              | Rendering          | Generated                               | No                             | Yes               |
 | Public Profile Route       | Rendering          | Account                                 | Yes                            | Yes               |
 
@@ -242,7 +241,7 @@ Account
 ├── owns QR Code
 ├── owns Stored Asset Metadata
 ├── owns Account Settings
-└── scopes Analytics and AI Suggestions
+└── scopes Analytics and AnalysisSessions
 ```
 
 ## Lifecycle
@@ -292,26 +291,52 @@ System-Owned Data
 
 Never public.
 
+## Fields
+
+```text
+auth_identity_id  — permanent internal identifier for this identity record
+account_id        — owning Account
+provider          — "google" or "apple" in V1; extensible via future provider adapters
+provider_subject  — the provider's stable subject identifier; immutable; globally unique together with provider; the only authentication identity key
+email             — provider-reported email, if any; optional; never unique; never the login identity; never used for automatic account merge
+email_verified    — whether the provider reported the email as verified; informational only
+provider_profile  — generic, optional, non-authoritative provider-returned metadata (e.g. display name, avatar URL, locale, or normalized raw claims); never used for ownership, authorization, uniqueness, or identity matching; never replaces Profile Content
+created_at
+updated_at
+```
+
+There is no top-level `display_name` field on this entity. Any provider-reported display name lives inside `provider_profile`.
+
 ## Key Relationships
 
 ```text
 Authentication Identity
-└── belongs to Account
+└── belongs to exactly one Account
 ```
+
+## Uniqueness and Minimums
+
+`(provider, provider_subject)` is globally unique across all Authentication Identity records. Every Account must have at least one Authentication Identity at all times; the last remaining one must never be removed.
+
+## Identity Merge Policy
+
+`provider_subject` is the only authentication identity key. `email` is never used for automatic account merge. The same email appearing from two different providers never causes an automatic merge; they remain separate identities unless explicitly linked by a logged-in Account owner. Full policy: `authentication.policy.v1.md` — "Identity Merge Policy".
 
 ## Lifecycle
 
 Authentication identity may be:
 
 ```text
-Created
+Created (registration, or linking an additional provider while signed in)
 ↓
 Active
 ↓
-Updated
+Metadata Refreshed (email / email_verified / provider_profile updated from a later provider authentication; provider_subject never changes)
 ↓
-Removed
+Removed (unlinked, identified by auth_identity_id — only if at least one other identity remains on the Account)
 ```
+
+There is no "replace" transition. `provider_subject` is immutable for the life of the record.
 
 ---
 
@@ -805,63 +830,7 @@ Deprecating a platform must not silently delete user-owned Social Account refere
 
 ---
 
-# 16. Platform Authorization Entity
-
-## Purpose
-
-Platform Authorization represents a future or optional authorization relationship between Minime and an external account provider.
-
-Platform Authorization does not exist in V1.
-
-It is reserved for future OAuth or external integration capabilities in V2 or later.
-
-Platform Authorization is not the same as Connected Account.
-
-Connected Account (§14) is the canonical social link record owned and confirmed by the user.
-
-Platform Authorization is an access or integration relationship — not a social link.
-
-## Owner
-
-```text
-Account
-```
-
-## Source of Truth
-
-The user initiates and authorizes the connection.
-
-The external provider may provide technical connection metadata.
-
-## Data Category
-
-```text
-User-Owned Data
-External Reference Data
-System-Owned Operational Data
-```
-
-## Public Visibility
-
-Not public by default.
-
-## Key Relationships
-
-```text
-Platform Authorization
-├── belongs to Account
-└── references external provider
-```
-
-## Lifecycle
-
-Not applicable in V1.
-
-Reserved for V2+.
-
----
-
-# 17. Out Link Entity
+# 16. Out Link Entity
 
 ## Purpose
 
@@ -921,13 +890,13 @@ Deleted or disabled Out Links must not route visitors as active links.
 
 ---
 
-# 18. QR Code Entity
+# 17. QR Code Entity
 
 ## Purpose
 
-QR Code represents a generated code that points to an approved Minime route.
+QR Code (`AccountQRCode`) represents the single, permanent generated code that resolves to an Account's canonical public profile route via `https://minime.ae/qr/{qr_code_id}`.
 
-Usually this route is the public profile or another approved Minime URL.
+V1 supports exactly one destination type: the Account's public profile. There is no other approved QR destination in V1.
 
 ## Owner
 
@@ -935,53 +904,58 @@ Usually this route is the public profile or another approved Minime URL.
 Account
 ```
 
+QR Code is an implementation area within the Account domain. It is never a standalone Product Domain.
+
 ## Source of Truth
 
-The user owns the target decision.
+The system owns QR Code identity, generation, and the destination resolution mechanism.
 
-The system generates the QR representation.
+The user owns nothing about the QR Code: it must never be user-edited, customized, regenerated, replaced, reset, or deleted independently.
 
 ## Data Category
 
 ```text
 Generated Data
 System-Owned Data
-User-Owned Reference
 ```
 
 ## Public Visibility
 
-The QR output may be public.
+The QR asset (SVG) is public via the QR Code's redirect route.
 
-Internal QR metadata is not public by default.
+Internal QR Code fields (e.g. the storage key of the underlying asset) are never public.
 
 ## Key Relationships
 
 ```text
 QR Code
-├── belongs to Account
-├── targets Public Profile Route or approved route
-├── may reference Stored Asset Metadata
-└── may emit QR Scanned Event if tracking is enabled
+├── identified by qr_code_id (PRIMARY KEY / UNIQUE — globally unique, immutable, permanent)
+├── belongs to exactly one Account (UNIQUE(account_id))
+├── targets the Account's current public profile route only (destination_type: "public_profile"), resolved live via account_id → Account.username — never stored on the QR Code record
+└── references exactly one Stored Asset (canonical_asset_id, canonical_format: "svg")
 ```
+
+`One Account = One QR Code Record` and `One QR Code Record = One Account` both hold permanently. QR Code never stores `username` or a username snapshot. QR Code never emits scan events and never participates in analytics in V1. QR scan tracking is explicitly out of scope.
 
 ## Lifecycle
 
 ```text
-Generated
+Created (mandatory, before Account activation — record + canonical SVG asset both persisted)
 ↓
-Active
+Account Activated (blocked until QR Code creation succeeds)
 ↓
-Regenerated / Retired
+Available
 ↓
-Deleted
+System-Regenerated (asset only — recovery or migration; record identity unchanged)
+↓
+Deleted (only on Account deletion)
 ```
 
-QR regeneration must not change the user's public profile data.
+An Account must never reach active status without a successfully created and persisted QR Code record and canonical SVG asset. Lazy generation at any later trigger point (first dashboard view, first settings view, first download, first share, first public profile visit) is forbidden. System-triggered regeneration must preserve `qr_code_id`, `account_id`, and `qr_url`. It must never create a new QR Code record. There is no user-triggered transition in this lifecycle.
 
 ---
 
-# 19. Public Profile Route Entity
+# 18. Public Profile Route Entity
 
 ## Purpose
 
@@ -1041,7 +1015,7 @@ Route changes must respect username and ownership policies.
 
 ---
 
-# 20. Stored Asset Metadata Entity
+# 19. Stored Asset Metadata Entity
 
 ## Purpose
 
@@ -1104,17 +1078,18 @@ Orphaned asset metadata must be handled by Storage and Data lifecycle policies.
 
 ---
 
-# 21. Analytics Event Entity
+# 20. Analytics Event Entity
 
 ## Purpose
 
 Analytics Event represents something that happened.
 
-Examples include:
+V1 examples include:
 
 * profile viewed
 * out link clicked
-* QR scanned
+
+QR scan events are explicitly out of scope for V1 and must not be implemented. QR Code never participates in analytics in V1.
 
 ## Owner
 
@@ -1148,9 +1123,10 @@ Analytics Event
 ├── may reference Account
 ├── may reference Public Profile Route
 ├── may reference Out Link
-├── may reference QR Code
 └── may contribute to Analytics Aggregate
 ```
+
+Analytics Event never references QR Code in V1.
 
 ## Lifecycle
 
@@ -1170,7 +1146,7 @@ They do not command behavior.
 
 ---
 
-# 22. Analytics Aggregate Entity
+# 21. Analytics Aggregate Entity
 
 ## Purpose
 
@@ -1233,71 +1209,63 @@ Aggregates should not replace canonical product data.
 
 ---
 
-# 23. AI Suggestion Entity
+# 22. Analysis Session Entity
+
+**Superseded terminology note:** earlier design work in this map used the name "AI Suggestion Entity" with its own Generated → Presented → Accepted/Edited/Rejected/Expired lifecycle, as a first-class, individually-tracked-per-suggestion entity. That model is V2 scope, not V1 — see `platform/ai/ai.architecture.specification.v1.md` — "Analysis Session": "Accepted suggestions, rejected suggestions, and learned preferences remain V2 scope." The single AI-owned entity in V1 is `AnalysisSession`, defined below; there is no separate per-suggestion entity, no per-suggestion accept/reject state machine, and no AI-owned persistence beyond `AnalysisSession` in V1.
 
 ## Purpose
 
-AI Suggestion represents an AI-generated recommendation before the user approves it.
-
-Examples include:
-
-* suggested bio text
-* suggested username
-* suggested button title
-* suggested profile improvement
-* onboarding suggestion
+`AnalysisSession` represents one execution of an AI profile analysis, including its resulting report, scores, suggestions, and recommendations as a single stored unit — not as individually tracked suggestion records.
 
 ## Owner
 
 ```text
 Account-scoped
 System-generated
-User-approved only if accepted
+AI Platform-owned (the only entity the AI Platform owns in V1)
 ```
 
 ## Source of Truth
 
-AI is the source of the suggestion.
+AI is the source of the analysis output stored on the session.
 
-The user is the source of truth for whether it becomes product data.
+The user is the source of truth for whether any suggestion within it is acted upon — acting on a suggestion means the user manually edits the relevant Product Domain data (e.g. Profile Content) themselves; there is no `applySuggestion` or `acceptSuggestion` command in V1, and no automatic write from `AnalysisSession` into any Product Domain entity.
 
 ## Data Category
 
 ```text
-AI Suggestion Data
-Generated Data
-Temporary Data
+AI-Generated Report Data
+Reusable Within Validity Rules (see Analysis Session Reuse below)
+Not Temporary — retained until account deletion, like other Product Data
 ```
 
 ## Public Visibility
 
-Never public unless accepted by the user and converted into Product Domain data.
+Never public. Account-owner-only, authenticated read access.
 
 ## Key Relationships
 
 ```text
-AI Suggestion
-├── may belong to Account
-├── may reference suggested target domain
-├── may be accepted, edited, rejected, or expired
-└── may become User-Owned Data only through approval
+AnalysisSession
+├── belongs to exactly one Account
+├── contains report, scores, suggestions, recommendations as opaque JSONB content
+├── is never partially accepted/rejected — the session itself is not mutated after completion
+└── never writes to any other Product Domain entity automatically
 ```
 
 ## Lifecycle
 
 ```text
-Generated
+pending
 ↓
-Presented
-↓
-Accepted / Edited / Rejected / Expired
+completed / failed
 ```
 
-Rejected suggestions must not become canonical user data.
+Only `completed` sessions may be reused (see "Analysis Session Reuse" in `ai.architecture.specification.v1.md`). `failed` sessions are never reused. There is no `Accepted`, `Edited`, `Rejected`, or `Expired` state in V1 — those describe V2's per-suggestion tracking, not the V1 session record.
 
 ---
 
-# 24. Render Object Entity
+# 23. Render Object Entity
 
 ## Purpose
 
@@ -1354,7 +1322,7 @@ Renderer never owns data.
 
 ---
 
-# 25. System Theme Definition Entity
+# 24. System Theme Definition Entity
 
 ## Purpose
 
@@ -1403,7 +1371,7 @@ Removing or changing a theme must respect existing Theme Selection behavior.
 
 ---
 
-# 26. Reserved Username Entity
+# 25. Reserved Username Entity
 
 ## Purpose
 
@@ -1460,7 +1428,7 @@ Reserved usernames must not be treated as user-owned accounts until successfully
 
 ---
 
-# 27. Entity Relationship Overview
+# 26. Entity Relationship Overview
 
 ```text
 Account
@@ -1478,11 +1446,10 @@ Account
 ├── Out Links
 │   └── Analytics Events
 ├── QR Codes
-│   ├── Stored Asset Metadata
-│   └── Analytics Events
+│   └── Stored Asset Metadata
 ├── Public Profile Route
 │   └── Analytics Events
-├── AI Suggestions
+├── AnalysisSessions
 └── Analytics Aggregates
 ```
 
@@ -1495,18 +1462,19 @@ System
 └── Reserved Usernames
 ```
 
-Generated / derived entities:
+Generated / derived entities (regenerable on demand from other canonical data, at no meaningful cost):
 
 ```text
 Canonical Product Data
 ├── Render Objects
-├── Analytics Aggregates
-└── AI Suggestions
+└── Analytics Aggregates
 ```
+
+`AnalysisSession` is intentionally excluded from this list: unlike Render Objects and Analytics Aggregates, it is not cheaply regenerable from other canonical data — it is itself a stored AI Platform output — so it is retained as ordinary Product Data (see §22) rather than treated as disposable derived data.
 
 ---
 
-# 28. Entities That Must Not Exist in V1
+# 27. Entities That Must Not Exist in V1
 
 The following must not be introduced as canonical ownership entities in V1:
 
@@ -1534,7 +1502,7 @@ Explanation:
 
 ---
 
-# 29. Entity Naming Rules
+# 28. Entity Naming Rules
 
 Entity names should be clear and singular.
 
@@ -1571,7 +1539,7 @@ Do not overload `account_id` to mean both owner and record identity.
 
 ---
 
-# 30. Canonical vs Non-Canonical Outputs
+# 29. Canonical vs Non-Canonical Outputs
 
 Some data structures are useful but not canonical.
 
@@ -1592,7 +1560,7 @@ If they conflict with canonical Product Domain data, canonical Product Domain da
 
 ---
 
-# 31. Final Canon
+# 30. Final Canon
 
 Minime V1 has one simple data ownership root:
 

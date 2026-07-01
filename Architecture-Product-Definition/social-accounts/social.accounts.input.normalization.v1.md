@@ -453,4 +453,4 @@ There is only one normalization pipeline.
 
 Input Normalization is a deterministic formatting process that transforms user-provided social account identifiers into a standardized internal representation.
 
-It removes presentation noise, extracts identifiers from supported URLs, applies platform formatting rules, and preserves user intent without performing discovery, verification, correction, or external communication.
+It removes presentation noise, extracts identifiers from supported URLs, applies platform formatting rules, and preserves user intent. Its scope begins and ends with formatting.

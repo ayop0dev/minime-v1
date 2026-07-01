@@ -45,12 +45,12 @@ These rules apply to **every** renderer below and are not repeated per renderer.
 | Avatar | `avatar` | Reference | `ProfileContent.avatar` | `{ url }` | `url` | Max 1 |
 | Name | `name` | Reference | `ProfileContent.display_name` | `{ value }` | `value` | Max 1 |
 | Bio | `bio` | Reference | `ProfileContent.bio` | `{ value }` | `value` | Max 1 |
-| Image | `image` | Content | Image Block | `{ url, alt }` | `url` (`alt` optional) | Unlimited |
-| Button | `button` | Content | Button Block | `{ label, url }` | `label`, `url` | Unlimited |
+| Image | `image` | Content | Image Block (`image_id`) resolved via `ImageAsset` + Storage Platform (`url`) | `{ url, alt }` | `url` (`alt` optional) | Unlimited |
+| Button | `button` | Content | Button Block (`label`) + Out Links domain (`url`) | `{ label, url }` | `label`, `url` | Unlimited |
 | Divider | `divider` | Content | Divider Block | `{}` (empty) | none | Unlimited |
-| Title | `title` | Content | Title Block | `{ value }` | `value` | Unlimited |
-| Textbox | `textbox` | Content | Textbox Block | `{ value }` | `value` | Unlimited |
-| Social Icons | `social_icons` | Collection Reference | Connected Accounts | `{ accounts:[…] }` | per account: `platform`, `url` | Unlimited |
+| Title | `title` | Content | Title Block | `{ text }` | `text` | Unlimited |
+| Textbox | `textbox` | Content | Textbox Block | `{ text }` | `text` | Unlimited |
+| Social Icons | `social_icons` | Collection Reference | Connected Accounts (`platform`, `username`) + Out Links domain (`url`) | `{ accounts:[…] }` | per account: `platform`, `url` | Unlimited |
 
 **Categories** (defined in the Rendering Canon):
 - **Reference** — reads a Profile-owned field; the block owns placement only.
@@ -88,17 +88,27 @@ Content renderers read the block's own stored content directly. They must not
 read from Profile, Connected Accounts, or other blocks.
 
 ### Image Renderer
-- Owns nothing; Image Block owns `image` and `alt_text`.
-- Content: `{ "url": "…", "alt": "…" }`. `url` required, `alt` optional.
-- If `alt` is missing, return `alt: ""`. Never auto-generate alt text.
-- Returns `null` if the image is null/empty or the asset is missing/invalid.
+- Image Block owns only `image_id` (a reference to an `ImageAsset` record — see `implementation/03-canonical-data-model.md` — ImageAsset). There is no `image` or `alt_text` field on the block; the renderer resolves `image_id` via `ImageAssetRepository`, then calls `StoragePlatform.buildPublicUrl(storage_key)` to produce `url`.
+- Content: `{ "url": "…", "alt": "…" }`. `url` required (produced by resolution above); `alt` is always `""` in V1 — there is no stored alt-text source anywhere (not on the Block, not on `ImageAsset`), so this is not an omission to fix later within V1, it is the complete rule. Never auto-generate alt text from filenames, AI, or any other source.
+- Returns `null` if `image_id` is null/empty or the referenced `ImageAsset` does not exist.
 
 ### Button Renderer
-- Button Block owns `label` and `url`. Content: `{ "label": "…", "url": "…" }`.
-- Both fields required; returns `null` if either is empty or the URL is malformed.
-- Preserves the URL exactly as stored. Never shortens, wraps, tracks, or rewrites
-  it — outbound routing and click tracking belong to the Out Links and Analytics
-  domains, not Rendering.
+- Button Block owns `label` and the original `url` the user entered (used only as the
+  source value when the Out Links domain creates or updates the managed OutLink for
+  this block — see `implementation/04-service-contracts.md` — OutLinksService and
+  RenderingService). The renderer itself never reads `Button Block.content.url` for
+  the Render Object.
+- Content: `{ "label": "…", "url": "…" }`, where `url` is `/out/{public_id}` for the
+  active OutLink resolved by `(block_id, connected_account_id = null)` — never the
+  raw stored destination. This is the "Out Link reference" read by the Button
+  Renderer per `rendering.architecture.canon.v1.md`.
+- Both fields required; returns `null` if `label` is empty or no active OutLink
+  resolves for this block (see "If no active OutLink exists... that link is omitted"
+  in `implementation/03-canonical-data-model.md` — OutLink).
+- Never shortens, wraps, rewrites, or otherwise transforms the resolved `/out/{public_id}`
+  value — outbound routing and click tracking belong to the Out Links and Analytics
+  domains, not Rendering. Rendering's only responsibility is resolving which OutLink
+  is active and placing its public route in the Render Object.
 
 ### Divider Renderer
 - Represents the existence of a visual separator. Content is intentionally `{}`.
@@ -107,15 +117,15 @@ read from Profile, Connected Accounts, or other blocks.
 - Returns `null` only if the block itself is invalid.
 
 ### Title Renderer
-- Semantic meaning: **section heading**. Title Block owns `value`.
-- Content: `{ "value": "…" }`. Returns `null` if `value` is null or empty.
+- Semantic meaning: **section heading**. Title Block owns `text` (see `blocks/title.block.specification.v1.md` — Content Shape: `TitleBlockContent = { text: string }`).
+- Content: `{ "text": "…" }`. Returns `null` if `text` is null or empty.
 - Independent of Textbox — no parent/child relationship; never reads Textbox content.
 - No heading levels or variants in V1.
 
 ### Textbox Renderer
-- Semantic meaning: **section content** (paragraphs, descriptions). Textbox Block owns `value`.
-- Content: `{ "value": "…" }`. Preserves stored formatting (line/paragraph breaks).
-- Returns `null` if `value` is null or empty. No rich-text/Markdown rendering in V1.
+- Semantic meaning: **section content** (paragraphs, descriptions). Textbox Block owns `text` (see `blocks/textbox.block.specification.v1.md` — Content Shape: `TextboxBlockContent = { text: string }`).
+- Content: `{ "text": "…" }`. Preserves stored formatting (line/paragraph breaks).
+- Returns `null` if `text` is null or empty. No rich-text/Markdown rendering in V1.
 - Independent of Title — never reads Title content.
 
 ---
@@ -131,10 +141,16 @@ read from Profile, Connected Accounts, or other blocks.
   apply visibility → apply ordering → build Render Object.
 - Content: `{ "accounts": [ { "platform", "username", "url" }, … ] }`.
   Per account, `platform` and `url` are required; `username` optional.
-- Consumes the stored canonical `url` **exactly as saved**. Never regenerates
-  URLs, normalizes identifiers, applies platform rules, or rebuilds links.
-- **Partial rendering:** invalid or deleted accounts are silently excluded; valid
-  accounts still render. Returns `null` only when no renderable accounts remain.
+- `url` per account is `/out/{public_id}` for the active OutLink resolved by
+  `(block_id, connected_account_id)` for that account — never the raw Connected
+  Account `url`. Raw social destination URLs must never appear in public render
+  payloads (see `implementation/03-canonical-data-model.md` — OutLink — Notes).
+  The Connected Account's own canonical `url` is consumed only as the source value
+  when the Out Links domain creates the OutLink for that icon, never read directly
+  by this renderer for the Render Object.
+- **Partial rendering:** invalid or deleted accounts, and accounts with no active
+  OutLink, are silently excluded; valid accounts still render. Returns `null` only
+  when no renderable accounts remain.
 - Multiple Social Icons Blocks may each show different account selections.
 - Not supported in V1: account collection/verification, live sync, dynamic
   status, follower counts, per-account analytics, conditional visibility.

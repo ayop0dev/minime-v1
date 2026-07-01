@@ -248,11 +248,14 @@ Classification: Cross-Cutting Product Capability.
 
 AI is intentionally introduced in V1 with a focused and practical scope.
 
-Included capabilities:
+Included capability:
+
+- "Analyze My Profile" — a single, on-demand Analysis Session triggered only by explicit user request. There is no AI chat and no background AI.
+
+The following are explicitly outside V1 scope:
 
 - Username suggestions
 - Social account setup assistance
-- Basic profile improvement suggestions
 - AI-assisted onboarding
 
 AI assists users.

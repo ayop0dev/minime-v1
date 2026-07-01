@@ -12,7 +12,7 @@ The Social Accounts Setup domain is responsible for collecting the user's public
 
 Its primary goal is to reduce user effort during onboarding while keeping the implementation simple, stable, and independent from third-party platform behavior.
 
-This domain intentionally does **not** perform account discovery, ownership verification, profile analysis, or external platform validation.
+Its responsibility is limited to canonical input processing: normalizing what the user provides and generating the corresponding public URL.
 
 ---
 
@@ -53,8 +53,7 @@ This domain never performs:
 * Account Discovery
 * Username Search
 * Platform Search
-* Ownership Verification
-* OAuth Authentication
+* Ownership Confirmation
 * API Communication
 * Web Scraping
 * Browser Automation
@@ -89,31 +88,9 @@ Both methods ultimately produce the same normalized social account records.
 
 # Smart Mode
 
-Smart Mode exists to minimize typing.
+Smart Mode is defined canonically in `social.accounts.smart.mode.specification.v1.md`. That document is the single source of truth for Smart Mode's responsibilities and constraints.
 
-It assumes that the user commonly uses the same username across multiple platforms.
-
-The user provides either:
-
-* a common username
-
-or
-
-* a social profile URL
-
-The system then:
-
-1. extracts the identifier if necessary
-2. normalizes the identifier
-3. applies platform-specific URL templates
-4. generates public profile URLs
-5. saves the resulting social accounts
-
-Smart Mode never performs platform requests.
-
-It never attempts to determine whether the account actually exists.
-
-Its responsibility ends after URL generation.
+Within Social Accounts Setup, choosing Smart Mode only changes how the identifier is collected. It produces a Normalized Social Account Handoff Record through the same pipeline used by Manual Mode.
 
 ---
 
@@ -176,7 +153,7 @@ Platform URL Template
 Generated Public URL
 ```
 
-No external verification is performed.
+The transformation occurs entirely from the normalized identifier and the platform's URL template.
 
 ---
 
@@ -199,21 +176,6 @@ The Connected Account immediately becomes part of the user's public profile acco
 The Social Accounts domain does not maintain canonical storage.
 
 Connected Accounts is the canonical storage location for user social link records.
-
----
-
-# OAuth
-
-OAuth is intentionally outside the scope of this domain.
-
-If supported in future versions, OAuth exists only for:
-
-* ownership verification
-* platform integration
-* synchronization
-* advanced platform features
-
-OAuth is never required to create social accounts.
 
 ---
 
@@ -342,4 +304,4 @@ Social Accounts Setup is responsible for collecting, normalizing, and producing 
 
 It generates standardized public profile URLs using platform-specific rules and delivers the resulting handoff records to Connected Accounts for canonical storage.
 
-It does not discover accounts, verify ownership, validate existence, communicate with external social media platforms, or maintain canonical storage of social link records.
+Its responsibility begins and ends with canonical input processing: it trusts the identifier the user provides, transforms it into a standardized format, and generates the corresponding public URL.

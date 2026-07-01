@@ -18,11 +18,13 @@ The purpose of this specification is to centralize all platform-specific rules w
 
 # Authoritative Platform Registry
 
-The authoritative, per-platform rule set lives in the `social-accounts/platform/` directory as one `<platform>.platform.rules.v1.md` file per platform.
+The authoritative, per-platform rule set lives in the `social-accounts/social-platforms/` directory as one `<platform>.platform.rules.v1.md` file per platform.
 
 This document defines the **shared processing model** and the canonical formatting fields (identifier type, accepted input, display prefix, URL template, normalization). The platform sections below are kept consistent with the per-platform rule files.
 
 Precedence rule: where this document and a per-platform rule file differ for the same platform, **the per-platform rule file is authoritative**. New platform support is added by creating a per-platform rule file with the six required fields; it is never added by inference, lookup, or any external communication.
+
+**V1 supported platforms (closed set, exactly 12):** `youtube`, `x`, `twitch`, `tiktok`, `threads`, `telegram`, `spotify`, `snapchat`, `linkedin`, `instagram`, `facebook`, `behance` — one dedicated rule file per platform in `social-accounts/social-platforms/`, and one matching value in the `SocialPlatform` enum (`implementation/03-canonical-data-model.md`). These three surfaces (this document's platform sections, the per-platform files, and the enum) must always list exactly the same platforms. Adding a platform requires updating all three in the same change; a platform documented in only one or two of the three is not V1-supported and must not be exposed in any API or UI option list.
 
 ---
 
@@ -409,100 +411,6 @@ https://youtube.com/@{handle}
 ## Normalization
 
 * remove leading @
-* remove URL components
-* lowercase identifier
-
----
-
-# GitHub
-
-## Platform Name
-
-GitHub
-
----
-
-## Identifier Type
-
-Username
-
----
-
-## User Input
-
-Accepted:
-
-```text
-hmn
-
-https://github.com/hmn
-```
-
----
-
-## Display Prefix
-
-None
-
----
-
-## URL Template
-
-```text
-https://github.com/{username}
-```
-
----
-
-## Normalization
-
-* remove URL components
-* lowercase identifier
-
----
-
-# Pinterest
-
-## Platform Name
-
-Pinterest
-
----
-
-## Identifier Type
-
-Username
-
----
-
-## User Input
-
-Accepted:
-
-```text
-hmn
-
-https://pinterest.com/hmn
-```
-
----
-
-## Display Prefix
-
-None
-
----
-
-## URL Template
-
-```text
-https://pinterest.com/{username}
-```
-
----
-
-## Normalization
-
 * remove URL components
 * lowercase identifier
 

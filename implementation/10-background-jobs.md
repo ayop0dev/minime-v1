@@ -100,21 +100,23 @@ The following jobs are the only V1-approved background jobs. Each is traceable t
 
 **Owner:** Out Links domain / Analytics domain
 
-**Trigger:** After `OutLinksService.resolveOutLink` returns the destination URL. The HTTP redirect must not wait for this job.
+**Trigger:** Enqueued by `OutLinksService.resolveOutLink` with `jobId = click_id` (see `04-service-contracts.md`), before the HTTP 302 response is sent. The HTTP redirect must not wait for this job to execute.
 
 **Payload:**
 
 ```json
-{ "out_link_id": "uuid" }
+{ "click_id": "uuid", "out_link_id": "uuid", "account_id": "uuid" }
 ```
 
 **Behavior:**
 
-- Calls `AnalyticsService.recordLinkClick({ out_link_id })`.
-- Appends `AnalyticsEvent { event_type: 'link_click', out_link_id, created_at }`.
-- After persistence, publishes `out-link.clicked` via EventEmitter.
+- Calls `AnalyticsService.recordLinkClick({ click_id, out_link_id, account_id })`.
+- Inserts `AnalyticsEvent { id: click_id, event_type: 'link_click', out_link_id, account_id, created_at }`.
+- After persistence (including the "already recorded" case below), publishes `out-link.clicked` via EventEmitter.
 
-**Retry:** Yes. Click recording failure should be retried. Idempotent if the event record is deduplicated by job ID; otherwise may produce duplicate click counts on retry — acceptable for V1 analytics accuracy.
+**Counting point:** A click is counted exactly once, at the moment this job successfully inserts (or confirms as already inserted) the `AnalyticsEvent` row. This is independent of whether the HTTP client ever receives the 302 response — a client disconnecting before the response arrives does not affect the count, since the job was already enqueued with a fixed `click_id` at resolve time.
+
+**Retry:** Yes. `jobId = click_id` gives BullMQ its own de-duplication at the queue level; the `AnalyticsEvent.id = click_id` primary key gives a second, database-level de-duplication layer independent of the queue. On retry, the insert either succeeds (first attempt) or conflicts on `id` (subsequent attempts), which `AnalyticsService.recordLinkClick` treats as an already-recorded success — never a duplicate row, never a duplicate count.
 
 **Why BullMQ:** Click recording must not block the public redirect. The HTTP 302 response is returned immediately. Analytics recording executes asynchronously after the redirect.
 
@@ -213,7 +215,7 @@ The following jobs are the only V1-approved background jobs. Each is traceable t
 Implementation must not introduce jobs for:
 
 - **Publishing** — no publishing workflow in V1
-- **OAuth token refresh** — no OAuth connections in V1
+- **Social/Connected Accounts OAuth token refresh** — Connected Accounts are lightweight, user-declared social links, not OAuth connections; no such tokens exist to refresh. (This is distinct from Authentication's Google/Apple sign-in OAuth, which exists but persists no provider tokens — see `08-security-model.md`, so there is nothing for a job to refresh there either.)
 - **Social account verification** — Social Accounts domain owns no storage and has no verification flow
 - **Email OTP delivery** — Email OTP is not supported in V1; authentication is provider-based
 - **Phone OTP delivery** — phone OTP is not supported in V1
@@ -270,7 +272,7 @@ Job workers must go through Product Domain services, not directly to repositorie
 
 **Owner:** Account domain (orchestration only; execution delegates to owning domain services)
 
-**Trigger:** Enqueued by the `account.deleted` EventEmitter handler after AccountService.deleteAccount publishes the event.
+**Trigger:** Enqueued with `jobId = "account-deletion-cascade:{account_id}"`. Two independent paths may enqueue it: (a) the best-effort `account.deleted` EventEmitter handler, as a fast path; (b) the Deletion Outbox Dispatcher (Job 8), which is the durability guarantee — it enqueues this job within 30 seconds even if path (a) never runs because the process crashed. `jobId` deduplication makes double-enqueue from both paths a safe no-op.
 
 **Payload:**
 
@@ -290,14 +292,16 @@ Cascade steps in order:
 4. `OutLinksService.deleteAccountOutLinks({ account_id })` — hard-deletes all OutLink records regardless of status
 5. `ProfileService.deleteAccountData({ account_id })` — hard-deletes all Blocks; hard-deletes all ImageAssets (calls StoragePlatform.delete(storage_key) for each); hard-deletes ProfileContent (includes appearance_config JSONB); calls StoragePlatform.delete(avatar_storage_key) if set
 6. `ConnectedAccountsService.deleteAccountConnectedAccounts({ account_id })` — hard-deletes all ConnectedAccount records
-7. `AccountService.deleteQrAsset({ account_id })` — if Account.qr_config.storage_key is set, calls StoragePlatform.delete(storage_key) to remove the QR binary; clears storage_key from qr_config
+7. `AIService.deleteAccountAnalysisSessions({ account_id })` — hard-deletes all AnalysisSession records for the account regardless of status (pending, completed, failed)
+8. `AccountService.deleteQrCode({ account_id })` — if an `AccountQRCode` record exists: calls StoragePlatform.delete(canonical_asset_id) to remove the QR SVG asset, then hard-deletes the `AccountQRCode` record. After this step, `GET /qr/{qr_code_id}` no longer resolves to an active profile.
 
 Notes:
 - AppearanceState is not a separate entity; appearance_config is a JSONB field on ProfileContent, deleted in step 5.
-- There is no AI decisions entity in V1.
+- There is no `AiDecision`, `AcceptedDecision`, or `SuggestionHistory` entity in V1. `AnalysisSession` is the only AI-owned entity; it is hard-deleted in step 7 regardless of status.
+- `AccountQRCode` is a separate Account-owned entity (entity 12 in `03-canonical-data-model.md`), not a field on Account. Its deletion in step 8 is a record deletion, not just an asset deletion.
 - StoragePlatform.delete is idempotent — deleting a non-existent key does not throw.
 - ConnectedAccount deletion uses Hard Delete (no soft delete, no deleted_at).
-- Account record is retained permanently with qr_config metadata; only the QR binary is removed from Object Storage.
+- Account record is retained permanently; only the `AccountQRCode` record and its SVG asset are removed.
 
 **Idempotency on retry:** If any step fails and the job retries:
 - Step 2 re-reads OutLink IDs. If OutLinks were already deleted (step 4 completed in a prior attempt), step 2 returns an empty list. Step 3 will only clean up profile_view events (link_click events were already cleaned up in the prior attempt). Steps 3 and 4 are both idempotent no-ops if their target records no longer exist.
@@ -313,17 +317,69 @@ Notes:
 
 ---
 
+### 8. Deletion Outbox Dispatcher
+
+**Queue:** `account.deletion.outbox.dispatch` (scheduled)
+
+**Owner:** Account domain
+
+**Trigger:** Scheduled — runs every 30 seconds.
+
+**Payload:** None (scheduled sweep).
+
+**Behavior:**
+
+This job is the durability guarantee for account deletion. It exists because `account.deleted` EventEmitter delivery is best-effort and non-durable (see `06-event-contracts.md`), and per `events.architecture.specification.v1.md` — "Failure Philosophy" — business correctness must never depend solely on Event persistence.
+
+1. `SELECT * FROM AccountDeletionOutbox WHERE dispatched_at IS NULL` (see `03-canonical-data-model.md` — AccountDeletionOutbox).
+2. For each row: enqueue `account.deletion.cascade` (Job 7) with a deterministic `jobId = "account-deletion-cascade:{account_id}"`. BullMQ deduplicates on `jobId`, so this is a safe no-op if the best-effort EventEmitter path already enqueued the same job.
+3. Set `dispatched_at = NOW()` and increment `attempts` on the outbox row.
+
+**Retry:** Yes. Idempotent — re-dispatching an already-enqueued `account.deletion.cascade` job is a no-op by construction (step 2).
+
+**Reconciliation:** A row with `dispatched_at IS NULL` and `requested_at` older than 1 hour indicates this job itself is failing systemically (not an individual account problem) and must page an operator. This is the sole reconciliation mechanism for stuck deletions; no separate monitoring subsystem exists.
+
+**Architecture basis:** `Architecture-Product-Definition/platform/events/events.architecture.specification.v1.md` — "Failure Philosophy," `event.lifecycle.specification.v1.md` — "Product correctness always has higher priority than Event recording." `03-canonical-data-model.md` — AccountDeletionOutbox.
+
+---
+
+### 9. Audit Log Retention
+
+**Queue:** `audit-log.retention` (scheduled)
+
+**Owner:** Platform
+
+**Trigger:** Scheduled — runs daily.
+
+**Payload:** None (scheduled sweep).
+
+**Behavior:**
+
+- Hard-deletes `AuditLog` records where `created_at < NOW() - 12 months`.
+- No archival tier exists in V1, per `audit.logging.policy.v1.md` — "Expiration."
+
+**Retry:** Yes. Idempotent.
+
+**Architecture basis:** `Architecture-Product-Definition/account-management/audit.logging.policy.v1.md` — Retention Policy.
+
+---
+
 ## Account Deletion Cascade Summary
 
-Account deletion executes in two phases:
+Account deletion executes in three phases:
 
 **Synchronous (within the HTTP request, before response returns):**
-1. `Account.status = 'deleted'` — AccountService
-2. All active sessions revoked — EventEmitter handler calls AuthService.revokeAllSessions
+1. `Account.status = 'deleted'` and an `AccountDeletionOutbox` row are committed atomically in one transaction — AccountService
+2. After commit: `AuditLogService.record(...)` writes the `account_deleted` audit row, then `account.deleted` is published via EventEmitter as a best-effort notification (cache invalidation and any session revocation that happens to succeed synchronously — neither is relied upon for correctness)
+
+**Durably guaranteed (Deletion Outbox Dispatcher, Job 8, within 30 seconds even in a total-crash scenario):**
+3. `account.deletion.cascade` (Job 7) is enqueued — guaranteed by the `AccountDeletionOutbox` row from step 1, independent of whether the EventEmitter publish in step 2 ever ran.
 
 **Asynchronous (account.deletion.cascade BullMQ job, Job 7):**
-3–9. Cross-domain cascade as defined in Job 7 above: sessions cleanup → collect out_link_ids → Analytics deletion → OutLinks deletion → Profile data + ImageAssets → ConnectedAccounts → QR storage asset deletion.
+4–11. Cross-domain cascade as defined in Job 7 above: sessions cleanup (catch-all — this is where session revocation is actually guaranteed, not the best-effort step 2 handler) → collect out_link_ids → Analytics deletion → OutLinks deletion → Profile data + ImageAssets → ConnectedAccounts → AnalysisSessions → QR Code record + SVG asset deletion.
 
 **Cascade idempotency guarantee:** out_link_ids are collected from the database in a read-only step (step 2 of the cascade) before any deletion occurs. Analytics runs before OutLinks are deleted. On retry, if OutLinks are already deleted, the read returns empty and analytics is a safe no-op (already completed).
+
+**Access-blocking guarantee independent of session revocation timing:** every authenticated request additionally verifies `Account.status = 'active'` via a short-TTL cached check (see `08-security-model.md` — "Per-Request Account Status Check") — this bounds how long a deleted account's still-valid access token can be used to a few seconds, regardless of when the Session row itself is revoked.
 
 No "account deletion cancellation" job exists. Deletion is final in V1.

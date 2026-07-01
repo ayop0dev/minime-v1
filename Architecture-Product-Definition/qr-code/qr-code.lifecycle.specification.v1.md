@@ -2,7 +2,7 @@
 
 # Minime QR Code Lifecycle Specification V1
 
-**Version:** 1.0
+**Version:** 1.2
 **Status:** Approved
 **Domain:** Account
 
@@ -10,48 +10,45 @@
 
 # 1. Purpose
 
-This specification defines the lifecycle of QR Codes within Minime.
+This specification defines the lifecycle of the QR Code record within Minime.
 
-It describes how a QR Code is created, maintained, updated, and retired throughout the lifecycle of its owning Profile.
-
-The lifecycle is independent from the implementation used to generate QR representations.
+It describes how the QR Code is created, maintained, and retired throughout the lifecycle of its owning Account.
 
 ---
 
 # 2. Scope
 
-The QR Code Lifecycle is responsible for defining:
+The QR Code Lifecycle defines:
 
 * Creation
 * Availability
-* Maintenance
-* Regeneration
-* Retirement
+* System-triggered regeneration
+* Retirement (account deletion)
 
-It does not define QR generation algorithms or rendering behavior.
+It does not define QR generation mechanics (`qr-code.generation.specification.v1.md`) or routing behavior (`public-profile.routing.specification.v1.md`).
 
 ---
 
 # 3. Lifecycle Ownership
 
-The QR Code System owns the complete lifecycle of every QR Code.
+The Account domain owns the complete lifecycle of the QR Code record.
 
-The lifecycle follows the lifecycle of its owning Profile.
-
-A QR Code cannot exist independently from a Profile.
+The QR Code lifecycle always follows the lifecycle of its owning Account. A QR Code record must never exist without an owning Account.
 
 ---
 
 # 4. Lifecycle States
-
-Conceptually, a QR Code progresses through the following states:
 
 ```text
 Not Created
 
 ↓
 
-Generated
+Generated (once, mandatory, before the Account becomes active)
+
+↓
+
+Account Activated (blocked until QR Code record + SVG asset exist)
 
 ↓
 
@@ -59,191 +56,191 @@ Available
 
 ↓
 
-Maintained
+System Regenerated (only for recovery or migration)
 
 ↓
 
-Regenerated (if required)
-
-↓
-
-Retired
+Retired (on Account deletion)
 ```
 
-The exact implementation of these states is implementation-specific.
+There is no user-triggered transition anywhere in this lifecycle. There is no path from "Not Created" directly to "Account Activated" — generation must complete first.
 
 ---
 
 # 5. Creation
 
-A QR Code becomes eligible for creation once a canonical Public Profile exists.
-
-Creation establishes the permanent association between the Profile and its QR representation.
+* The QR Code record becomes eligible for creation only once the Account and its canonical public profile route exist.
+* Creation happens exactly once per Account.
+* Creation establishes the permanent association between the Account and its QR Code: `account_id`, `qr_code_id`, and `qr_url`.
+* A QR Code record must never be created a second time for the same Account.
+* Creation must complete successfully — record persisted and canonical SVG asset persisted — before the Account becomes active. If creation fails, the Account must not become active.
+* The QR Code record never stores `username` or a username snapshot; only `account_id` is stored as the reference to the owning Account.
 
 ---
 
 # 6. Availability
 
-After successful creation, the QR Code becomes available for use.
+After successful creation, the QR Code is available for use.
 
 At this stage it may be:
 
-* Displayed
+* Viewed directly inside `Settings / Account / QR Code`
 * Downloaded
 * Shared
-* Printed
+* Used to copy the profile link
 
-Availability does not modify the QR Code itself.
-
----
-
-# 7. Maintenance
-
-Throughout the lifetime of a Profile, the QR Code remains associated with its canonical destination.
-
-Routine maintenance may include implementation-specific optimizations while preserving the same destination.
-
-Maintenance shall never alter the ownership or purpose of the QR Code.
+Availability never modifies the QR Code record or its asset.
 
 ---
 
-# 8. Regeneration
+# 7. System-Triggered Regeneration
 
-Regeneration may occur when the QR representation itself must be recreated.
+Regeneration of the underlying asset (not the record) may occur only for:
 
-Examples include:
-
-* Internal format improvements
-* Asset regeneration
-* Visual redesign
+* Missing asset recovery
+* Corrupted asset recovery
 * Storage migration
+* Format migration
 
-Regeneration shall preserve the same canonical destination unless the Public Profile itself has changed.
+Regeneration must always preserve:
 
-Regeneration never changes ownership.
+* The same QR Code record
+* The same `qr_code_id`
+* The same `account_id`
+* The same logical QR identity
+* The same QR payload route (`qr_url`)
 
----
-
-# 9. Retirement
-
-A QR Code is retired when its owning Profile is permanently removed.
-
-Retirement ends the lifecycle of the QR representation.
-
-A retired QR Code shall no longer be considered valid within the Minime system.
+Regeneration must never create a new QR Code record and must never be triggered by the user.
 
 ---
 
-# 10. Relationship with Profile Lifecycle
+# 8. Retirement
 
-The QR Code Lifecycle depends entirely on the lifecycle of the Profile.
+The QR Code record is retired only when its owning Account is deleted.
 
-Conceptually:
+Retirement:
+
+* Deletes the QR Code record.
+* Deletes the generated SVG asset through the Storage Platform deletion/orphan cleanup rules.
+* Causes `/qr/{qr_code_id}` to no longer resolve to an active profile.
+
+A retired QR Code must never return to an active state. This must remain aligned with the existing account deletion cascade (`account.deletion.policy.v1.md`).
+
+---
+
+# 9. Relationship with Account Lifecycle
 
 ```text
-Profile Created
+Account Created (pending activation)
 
 ↓
 
-QR Created
+Canonical Public Profile Route Established
 
 ↓
 
-Profile Updated
+QR Code Created (record + canonical SVG asset persisted)
 
 ↓
 
-QR Maintained
+Account Activated
 
 ↓
 
-Profile Deleted
+Account Deleted
 
 ↓
 
-QR Retired
+QR Code Retired
 ```
 
-The QR lifecycle never outlives the Profile lifecycle.
+The QR Code lifecycle never outlives the Account lifecycle, and it never begins before the Account and its canonical route exist. The Account never reaches "Activated" before "QR Code Created" completes.
 
 ---
 
-# 11. Relationship with Public Profile
+# 10. Relationship with Public Profile
 
-The Public Profile determines the canonical destination of the QR Code.
+The Account's current public profile route determines the resolution target of `/qr/{qr_code_id}` at request time, resolved live through `account_id → Account.username` — never from a value stored on the QR Code record.
 
-Changes to Profile Content or Appearance do not inherently require a new QR Code, provided the canonical Public Profile URL remains unchanged.
-
----
-
-# 12. Lifecycle Rules
-
-The following rules always apply:
-
-* Every active Profile has at most one active QR Code.
-* Every QR Code belongs to exactly one Profile.
-* A QR Code never exists without an owning Profile.
-* A retired QR Code cannot return to an active state.
-* Regeneration preserves logical identity.
+Changes to Profile Content or Appearance never require a new QR Code record, because the QR payload references `qr_code_id`, not profile content, and the username is not supported as editable in V1.
 
 ---
 
-# 13. Invariants
+# 11. Lifecycle Rules
+
+* Every active Account has exactly one QR Code record, enforced by `UNIQUE(account_id)`.
+* Every QR Code record belongs to exactly one Account, enforced by `PRIMARY KEY(qr_code_id)` (or `UNIQUE(qr_code_id)`).
+* A QR Code record never exists without an owning Account.
+* An Account never reaches active status without a QR Code record and a persisted canonical SVG asset.
+* A retired QR Code record cannot return to an active state.
+* System-triggered regeneration always preserves logical identity (`qr_code_id`, `account_id`, `qr_url`).
+* User-triggered regeneration, replacement, reset, customization, or deletion is forbidden at every stage of the lifecycle.
+* The QR Code record never stores `username` or a username snapshot at any stage of the lifecycle.
+
+---
+
+# 12. Invariants
 
 The following architectural rules are permanent.
 
-## Profile Dependency
+## Account Dependency
 
-The QR lifecycle is fully dependent on the Profile lifecycle.
-
----
-
-## Stable Association
-
-A QR Code maintains a stable association with its owning Profile.
+The QR Code lifecycle is fully dependent on the Account lifecycle.
 
 ---
 
-## Single Active QR
+## Single Record, Both Directions
 
-Only one active QR Code exists per Profile.
-
----
-
-## Independent Representation
-
-The QR representation may change without changing its logical destination.
+Only one QR Code record exists per Account (`UNIQUE(account_id)`), for the entire lifetime of that Account. Only one Account exists per QR Code record (`PRIMARY KEY(qr_code_id)` / `UNIQUE(qr_code_id)`).
 
 ---
 
-## Canonical Destination
+## Permanent Identity
 
-Lifecycle events never alter the canonical Public Profile unless the Profile itself changes.
-
----
-
-## Ownership Preservation
-
-Lifecycle transitions never change ownership.
+`qr_code_id` and `account_id` never change across any lifecycle transition.
 
 ---
 
-# 14. Future Evolution
+## No Stored Username
 
-Future versions may introduce additional lifecycle capabilities such as:
+The QR Code record never stores `username` or a username snapshot at any lifecycle stage. Resolution always reads `Account.username` live through `account_id`.
+
+---
+
+## Mandatory Before Activation
+
+No Account may reach active status without a successfully created and persisted QR Code record and canonical SVG asset. There is no lazy-generation fallback at any later trigger point.
+
+---
+
+## Asset May Be Regenerated, Record Never Recreated
+
+The stored SVG asset may be system-regenerated for recovery or migration. The QR Code record itself is created exactly once and is never recreated.
+
+---
+
+## Deletion-Only Retirement
+
+The only path to retirement is Account deletion.
+
+---
+
+## No User-Triggered Transitions
+
+No lifecycle state transition may be initiated by the user.
+
+---
+
+# 13. Out of Scope (V1)
+
+The following are explicitly out of scope and must not be implemented:
 
 * Versioned QR assets
-* Multiple presentation formats
+* Multiple presentation formats stored as canonical
+* QR expiration policies
 * Campaign-specific lifecycle policies
-* Automatic asset optimization
-* QR expiration policies for temporary resources
+* Any lifecycle transition triggered by the user
+* Storing `username` or a username snapshot on the QR Code record
+* Lazy generation triggered after Account activation
 
-These capabilities shall preserve:
-
-* Profile ownership
-* Stable logical identity
-* Canonical destination
-* One active QR Code per Profile
-* Architectural separation
-
-The lifecycle defined by this specification is the canonical lifecycle for QR Codes within Minime V1.
+This lifecycle is the canonical lifecycle for QR Codes within Minime V1.

@@ -41,7 +41,8 @@ minime-v1/
 │
 ├── apps/
 │   ├── web/
-│   └── api/
+│   ├── api/
+│   └── worker/
 │
 ├── packages/
 │   ├── shared/
@@ -115,6 +116,23 @@ The API app owns server-side execution.
 The API app may access the database through repositories.
 
 The API app may use Redis, object storage, background jobs, and internal events.
+
+The API app enqueues background jobs (via BullMQ/Redis); it does not execute them. Job execution is `apps/worker`'s responsibility — see below.
+
+---
+
+## 3.3 `apps/worker`
+
+The `worker` app contains BullMQ job processors — every job defined in `implementation/10-background-jobs.md`, including the Deletion Outbox Dispatcher (Job 8), Audit Log Retention (Job 9), OutLink click recording, and all other scheduled/triggered jobs.
+
+Responsibilities:
+
+* execute BullMQ job processors, calling Product Domain services exactly as `apps/api` controllers do (Job workers must go through Product Domain services, not directly to repositories or Prisma — `10-background-jobs.md`)
+* run scheduled (cron-style) job triggers
+
+The worker app shares the same Product Domain service layer, repositories, and Prisma schema as `apps/api` (same monorepo modules under `packages/`), but has **no HTTP listener** and is never reachable from Nginx. It is a separate deployable process/container from `apps/api` so that job execution capacity scales independently of HTTP request capacity, and so that running multiple `apps/api` instances never risks a job being processed once per instance (see `implementation/13-implementation-plan.md` — Phase 10 — "Multi-Instance Policy").
+
+The worker app must not expose any public or internal HTTP route beyond its own health check.
 
 ---
 
@@ -390,8 +408,11 @@ Allowed:
 ```text
 apps/web        → packages/*
 apps/api        → packages/*
+apps/worker     → packages/*
 apps/api        → apps/api/src/platform/*
 apps/api/modules → apps/api/platform/*
+apps/worker     → apps/api/src/modules/*      (worker calls the same Product Domain services)
+apps/worker     → apps/api/src/platform/*
 ```
 
 Not allowed:
@@ -399,6 +420,8 @@ Not allowed:
 ```text
 apps/web → apps/api/src/*
 apps/api → apps/web/src/*
+apps/web → apps/worker/src/*
+apps/worker → apps/web/src/*
 packages → apps/*
 packages/shared → packages/ui
 packages/config → apps/*

@@ -171,22 +171,57 @@ The following constants are derived directly from frozen architecture specificat
 
 ### Authentication
 
-**Supported authentication methods:** Google Sign-In and Apple Sign-In only. Email OTP, Phone, SMS, WhatsApp, Facebook, X, and LinkedIn authentication are not supported in V1.
+**Supported authentication methods:** Google Sign-In and Apple Sign-In only. Email OTP, Phone, SMS, WhatsApp, Password, Facebook, X, and LinkedIn authentication are not supported in V1.
 
-**Provider assertion schema (POST /auth/provider and POST /auth/register/provider):**
+**Route note:** Every schema below applies to a provider-agnostic route. `provider` is always a request-body field, validated against the V1 allowlist, never a path parameter.
 
-```
-provider: AuthProvider enum value (google | apple), required
-provider_assertion: string, non-empty, required
-```
-
-`provider_assertion` carries the ID token issued by the provider (e.g. Google ID token or Apple ID token). The backend verifies it against the provider's public keys before use.
-
-**Provider assertion schema (registration handoff — short-lived, single-use):**
+**OAuth start schema (`POST /auth/oauth/start`):**
 
 ```
-provider_assertion: string, non-empty, single-use
+provider: body field, must equal "google" or "apple"; any other value rejected with 400 before any Provider Adapter is resolved
+intent: body field, must equal "authenticate" (default) or "link"; "link" requires an authenticated session
 ```
+
+**OAuth callback schema (`POST /auth/oauth/callback`):**
+
+```
+provider: body field, must equal "google" or "apple"; must match the provider bound to the state context recorded at startOAuth time — mismatch is rejected
+code: string, non-empty, required
+state: string, non-empty, required; must match a persisted, unexpired, unconsumed state value
+```
+
+The callback handler additionally validates, server-side, inside the resolved Provider Adapter, before extracting any identity data: `id_token` signature (against the provider's published keys), `iss` (issuer), `aud` (audience), `exp` (expiry), and `nonce` (must match the value persisted at startOAuth time). A token failing any one of these checks must be rejected; no identity data is extracted.
+
+**Registration completion schema (`POST /auth/oauth/register`):**
+
+```
+provider: body field, must equal "google" or "apple"; must match the provider embedded in oauth_handoff_token — mismatch is rejected
+oauth_handoff_token: string, non-empty, single-use, short-lived
+reservation_id: UUID, required
+```
+
+**Provider linking finalization schema (`POST /account/auth-providers/link`):**
+
+```
+link_handoff_token: string, non-empty, single-use, short-lived; its bound account_id must match the authenticated caller — mismatch is rejected
+```
+
+**Normalized provider identity fields, produced only by `AuthenticationProviderAdapter.normalizeIdentity` (never accepted as raw client input on any route):**
+
+```
+provider_subject: string, non-empty — the verified sub claim; the only authentication identity key
+email: string, optional, valid email format if present — never validated as a uniqueness constraint, never used for identity matching
+email_verified: boolean, optional
+provider_profile: object, optional — generic non-authoritative metadata (e.g. display_name, avatar_url, locale); not validated beyond being a JSON object; never interpreted for authorization
+```
+
+**Provider unlinking validation (`DELETE /account/auth-providers/{auth_identity_id}`):**
+
+```
+auth_identity_id: path parameter, UUID, required; must belong to the authenticated account
+```
+
+Unlinking must be rejected (`409`) if removing this identity would leave the account with zero `AuthenticationIdentity` records.
 
 ---
 
@@ -301,6 +336,8 @@ The system must reject block creation when total active (non-soft-deleted) block
 
 Each `connected_account_id` in a social_icons block's `content.accounts` array must reference an existing `ConnectedAccount` owned by the same account (business validation layer). Validation must reject additions of unknown or cross-account references. When a connected_account_id is removed from block content via ConnectedAccountsService.removeConnectedAccount, no dangling reference may remain.
 
+**social_icons internal `content.accounts[].sort_order` validation:** this is a nested value inside a single Block's JSONB `content`, not a separate table, so it cannot be a database constraint — it is enforced entirely at this validation layer, on every write to a social_icons block's `content`: values must be unique within the array (no two entries share a `sort_order`), contiguous starting at 0 (`0..N-1` for `N` entries, no gaps), and cover exactly the entries present in the array (a write with a non-contiguous, duplicated, or out-of-range set of `sort_order` values is rejected, not auto-corrected).
+
 **`style_overrides` field validation:**
 
 `style_overrides` is an optional JSONB field on Block. Validation rules:
@@ -311,9 +348,10 @@ Each `connected_account_id` in a social_icons block's `content.accounts` array m
 | Null | Accepted — means the block inherits all styles from the active theme |
 | Key format | String keys only; no nested objects deeper than one level per key |
 | Forbidden values | Resolved styles and inherited theme values must not be stored here; the system must reject any write that contains a resolved style blob |
-| Unknown keys | Unknown style keys are passed through without rejection — the Renderer selects valid keys; invalid keys are silently ignored at render time |
+| Allowed keys | Closed per block type — see `Architecture-Product-Definition/block-styling/block-style.model.specification.v1.md` — "Closed Property Catalog (V1)". A key not in that block type's list is rejected (the write fails; it is never silently dropped or ignored). |
+| Allowed values | Each key's value must be one of the domain values listed for it in the same Closed Property Catalog, and must additionally satisfy the active Theme's constraint range for that key (`theme.constraints.specification.v1.md`) — see `block-style.constraints.specification.v1.md` for the Reject-Save (write time) vs Reset-To-Inherited (theme-switch time) split. |
 
-`style_overrides` is never accepted from the client for Reference Blocks (`avatar`, `name`, `bio`) — these blocks have no user-controllable styles in V1.
+Reference Blocks (`avatar`, `name`, `bio`) do have a closed set of user-controllable style keys — see the Closed Property Catalog. They have no user-controllable *content* (content is sourced from `ProfileContent`), which is a separate concern from styling.
 
 **Block type enum:** See `03-canonical-data-model.md` — BlockType enum (9 values).
 
@@ -376,14 +414,16 @@ Rules:
 
 | Rule | Requirement |
 |---|---|
-| JSON format | AI response must be valid JSON. If parsing fails, the response is discarded; an empty suggestion array is returned; no error is surfaced to the user. |
+| Schema version conformance | AI response must conform to the configured current `output_schema_version`. If the response does not conform, the Analysis Session is marked `failed`; an empty suggestion array is returned; no error is surfaced to the user. |
+| JSON format | AI response must be valid JSON. If parsing fails, the response is discarded, the Analysis Session is marked `failed`, and an empty suggestion array is returned; no error is surfaced to the user. |
 | Maximum text length | Suggested text values must not exceed the corresponding field's canonical maximum (e.g. bio suggestions must not exceed 1000 characters per `07-validation-rules.md` — Profile Content). |
 | No HTML or script content | Suggested text values must be treated as plain text. HTML tags and script content must be stripped or rejected before acceptance. |
-| Username suggestions | Any username suggested by AI must be validated against `username.policy.v1.md` (pattern, length) and checked for availability before presentation. Reserved or unavailable usernames must not be presented. |
 | Unknown fields | Unexpected fields in AI response objects are ignored; they must never be passed to Product Domain services or persisted. |
 | Suggestion count | AI Platform must not return more suggestions than the configured maximum per request (implementation-configured constant). Excess suggestions are truncated. |
 
-AI output validation belongs to the AI Platform service layer. Product Domain services must not receive raw AI output.
+`output_schema_version` is a Minime-owned semantic version string, never provider- or model-owned. AI output validation belongs to the AI Platform service layer. Product Domain services must not receive raw AI output.
+
+**Version string validation:** `analysis_version` and `output_schema_version` must each be a valid semantic version string in `MAJOR.MINOR.PATCH` format (e.g. `"1.0.0"`). Numeric version values are not valid. `provider_key` and `model_key`, where present, are diagnostic metadata only and are not subject to AI output validation rules — they must never be used to determine validity or reuse.
 
 ---
 
@@ -404,14 +444,15 @@ Unknown or disallowed URL schemes must be rejected.
 Avatar uploads:
 
 - Content-Type: `multipart/form-data`
-- Accepted MIME types: image formats only (jpg, png, webp, gif)
+- Accepted MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/heic` — matches `storage.architecture.specification.v1.md` — "Canonical Image Format" exactly. `image/gif` is never accepted (animated GIF is an explicitly unsupported media type — see "Unsupported Media Types" in the same document); GIF support is not a partial exception for static GIFs either — the MIME type is rejected outright, regardless of whether the specific file is animated.
+- Magic-byte content sniffing must confirm the file's actual content matches its declared Content-Type before processing; a mismatched or malformed file is rejected before reaching the image-processing step (see `platform/storage/asset.processing.specification.v1.md` — "Input Validation").
 - Maximum file size: implementation-configured
 - Executable file types must be rejected
 
 Image block uploads (`POST /api/v1/profile/images`):
 
 - Content-Type: `multipart/form-data`
-- Accepted MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`
+- Accepted MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/heic` — same rule as avatar uploads above
 - Maximum file size: implementation-configured (same limit as avatar)
 - Executable file types must be rejected unconditionally
 - `image_id` in block content must be a valid UUID referencing an `ImageAsset` owned by the same account (business validation layer)
@@ -423,13 +464,13 @@ Image block uploads (`POST /api/v1/profile/images`):
 | Rule | Value |
 |---|---|
 | `image_id` in block content | Required, UUID format, must reference an existing `ImageAsset` with matching `account_id` |
-| Accepted upload MIME types | `image/jpeg`, `image/png`, `image/webp`, `image/gif` |
+| Accepted upload MIME types | `image/jpeg`, `image/png`, `image/webp`, `image/heic` (never `image/gif`) |
 | Maximum file size | Implementation-configured |
 | Executable file types | Must be rejected unconditionally |
 | Ownership on delete | `ImageAsset.account_id` must match the authenticated `account_id` |
 | Reference check on delete | No active (non-soft-deleted) block may reference the `image_id` being deleted |
 
-ImageAsset validation belongs to the Profile domain.
+ImageAsset validation belongs to the Profile domain. Post-upload processing (decode, transcode to WebP, dimension/decompression-bomb limits) is Storage Platform's responsibility — see `platform/storage/asset.processing.specification.v1.md`.
 
 ---
 
@@ -462,7 +503,13 @@ Implementation must not:
 - bypass Product Domain ownership
 - validate `profile_id` — it does not exist
 - validate `password` fields — V1 has no password authentication
-- validate `channel` on any OTP endpoint — Email OTP does not exist in V1
+- validate `channel` on any OTP endpoint — Email OTP does not exist in V1, and no OTP endpoint exists to validate against
+- accept `provider_subject` as a client-provided field anywhere — it is always derived from a verified `id_token` during an OAuth callback
+- accept a `provider` value other than `google` or `apple` on any authentication or account-provider endpoint in V1
+- treat `provider` as a route/path segment on any authentication endpoint — it is always request-body data
+- accept a client-supplied `client_secret`, Apple private key, or any provider secret on any endpoint — these exist only inside the backend's server-to-server token exchange, owned by the relevant Provider Adapter
+- accept `email` as a field used to locate, match, or merge an existing Account on any endpoint — identity resolution is always `(provider, provider_subject)`
+- accept a top-level `display_name` field for `AuthenticationIdentity` on any endpoint — provider-reported names live only inside `provider_profile`
 - validate `open_in_new_tab` in button settings — not a V1 field
 - validate `show_labels` in social_icons settings — not a V1 field
 - validate `has_label` or `label` in divider content — not a V1 field

@@ -142,6 +142,8 @@ Maximum expected delay after profile updates:
 60 Seconds
 ```
 
+This is a single end-to-end budget across every cache layer between PostgreSQL and the visitor, not 60 seconds granted independently to each layer. Where more than one cache layer exists (e.g. an application-level cache in front of PostgreSQL, and this document's edge/CDN layer in front of that), the total combined staleness must never exceed 60 seconds. See `implementation/09-caching-strategy.md` — "Freshness Budget Propagation" for the mechanism.
+
 or less.
 
 ---

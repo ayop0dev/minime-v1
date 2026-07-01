@@ -28,7 +28,7 @@ This document defines how the frozen architecture is implemented.
 
 ### Decision
 
-Node.js LTS.
+Node.js LTS, pinned to one exact version.
 
 ### Purpose
 
@@ -36,21 +36,23 @@ Provide the runtime environment for all backend services.
 
 ### Implementation Rules
 
-* All backend execution must use the current Node.js LTS release.
-* All production environments must use the same major Node.js version.
-* Development and CI environments must match the production major version.
+* The Node.js version must be an LTS release, and must be pinned to one exact `major.minor` version string — never "current LTS," which drifts as new LTS lines are promoted. The pinned version is recorded in exactly two places, which must always agree: an `.nvmrc` file at the repository root, and the `FROM node:<major.minor>-slim` line in each Dockerfile (`apps/api`, `apps/worker`, `apps/web` — see `13-implementation-plan.md` — Phase 10).
+* All production environments must use the same pinned major Node.js version.
+* Development and CI environments must match the production major version (CI reads `.nvmrc` rather than hardcoding a version, so the two cannot drift apart silently).
+* Upgrading the pinned version is a deliberate, reviewed change to `.nvmrc` and the Dockerfiles together, in the same commit — never an implicit consequence of a new LTS release existing upstream.
 
 ### Do
 
-* Use Node.js LTS.
-* Keep all environments synchronized.
-* Upgrade only after validation.
+* Use an LTS release, pinned to an exact version.
+* Keep all environments synchronized via `.nvmrc`.
+* Upgrade only after validation, and only by deliberately editing the pin.
 
 ### Don't
 
 * Do not use non-LTS releases.
 * Do not run different major versions across environments.
 * Do not depend on experimental runtime features.
+* Do not describe the runtime as "current LTS" anywhere in implementation or deployment configuration — state the exact pinned version.
 
 ### Decision Authority
 
@@ -537,18 +539,23 @@ Authenticate users and authorize API access.
 * Refresh tokens must be revocable.
 * Authentication must execute in the backend.
 * Authorization must execute before business operations.
+* Identity is established exclusively via Google Sign-In and Apple Sign-In OAuth/OIDC authorization-code flows, with backend-only token exchange and `id_token` validation. No Email OTP, password, phone/SMS/WhatsApp OTP, Facebook Login, X Login, or LinkedIn Login is implemented.
+* Provider configuration is environment-variable based: Google `client_id`/`client_secret`; Apple Services ID `client_id`, Team ID, Key ID, and private key (used to sign the `client_secret` JWT server-side).
 
 ### Do
 
 * Validate every protected request.
 * Rotate refresh tokens.
 * Revoke compromised sessions.
+* Validate `state`, `nonce`, and `id_token` (signature, issuer, audience, expiry) server-side on every provider callback.
 
 ### Don't
 
 * Do not trust frontend authentication state.
 * Do not store secrets in client code.
 * Do not bypass authentication middleware.
+* Do not expose the Apple private key or any provider `client_secret` to the frontend.
+* Do not persist provider access or refresh tokens.
 
 ### Decision Authority
 
@@ -998,7 +1005,10 @@ Execute on-demand profile Analysis Sessions when the user explicitly requests pr
 * API key is configured via `AI_API_KEY` environment variable.
 * If `AI_API_KEY` is absent: AI is disabled; `AIService.analyzeProfile` returns empty suggestions.
 * AI calls must time out after `AI_TIMEOUT_MS` milliseconds (default: 10000).
-* Analysis Session results are cached by input hash for `AI_CACHE_TTL_SECONDS` (default: 300). Identical context within TTL returns cached result without inference.
+* Analysis Sessions are reused by a three-way match: the latest completed Analysis Session for the account is reused only when its `input_hash`, `analysis_version`, and `output_schema_version` all match the current computed/configured values (exact string match for the two version fields). Time elapsed since the last Analysis Session never determines reuse eligibility (Analysis Session Reuse).
+* `analysis_version` and `output_schema_version` are semantic version strings (`MAJOR.MINOR.PATCH`, e.g. `"1.0.0"`) and Minime-owned application constants (co-located with prompt templates), not environment variables, not provider-owned, and not model-owned. Changing `AI_PROVIDER` or `AI_MODEL_ID` never changes them.
+* `input_hash` is generated from the normalized Analysis Input Snapshot — the only approved V1 source of AI analysis input. Snapshot generation and normalization are owned exclusively by `AIService`.
+* `provider_key` and `model_key` stored on an Analysis Session are diagnostic metadata only (debugging, support, monitoring, cost analysis, provider performance review, incident investigation). They never affect Analysis Session Reuse, validity, or any business decision. A Provider or Model change never invalidates prior Analysis Sessions by itself.
 * Prompt templates live in `packages/config/ai-prompts.ts` — not in the database.
 * Replacing the provider requires only a compatible adapter implementation and env var update. No domain service code changes.
 * V1 AI capability is limited to "Analyze My Profile" on-demand Analysis Sessions. Username suggestions, social setup suggestions, and onboarding guidance are not V1 AI capabilities.
@@ -1031,7 +1041,7 @@ Approved.
 
 | Category        | Technology                    |
 | --------------- | ----------------------------- |
-| Runtime         | Node.js LTS                   |
+| Runtime         | Node.js LTS, pinned via `.nvmrc` (see "Runtime" above) |
 | Language        | TypeScript                    |
 | Package Manager | pnpm                          |
 | Monorepo        | Turborepo                     |

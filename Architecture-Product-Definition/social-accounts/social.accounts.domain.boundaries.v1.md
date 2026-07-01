@@ -109,75 +109,25 @@ Account
 
 ---
 
-## Account Ownership
+## Implementation Constraints
 
-Handled by:
+The Social Accounts domain must not:
 
-```text
-OAuth Verification
-```
-
-(if enabled)
-
----
-
-## Account Discovery
-
-No discovery logic exists in V1.
-
----
-
-## Username Search
-
-No platform search exists.
-
----
-
-## Platform Requests
-
-No HTTP requests are sent to any social platform.
-
----
-
-## Platform APIs
-
-No platform API integrations exist.
-
----
-
-## Web Scraping
-
-Never performed.
-
----
-
-## Browser Automation
-
-Never performed.
-
----
-
-## Search Engines
-
-Never queried.
-
----
-
-## Username Availability
-
-Not supported.
-
----
-
-## Account Existence
-
-Never verified.
-
----
-
-## Profile Reading
-
-Not supported.
+* perform HTTP requests
+* call external APIs
+* communicate with social platforms
+* communicate with OAuth providers
+* scrape websites
+* verify usernames
+* verify URLs
+* verify account existence
+* verify ownership
+* retry failed lookups
+* maintain discovery state
+* maintain verification state
+* store platform metadata
+* cache discovery results
+* execute background jobs
 
 ---
 
@@ -239,47 +189,9 @@ Saving immediately updates the user's public profile according to Minime's publi
 
 # Smart Mode Boundary
 
-Smart Mode is frequently misunderstood.
+Smart Mode is defined canonically in `social.accounts.smart.mode.specification.v1.md`. That document is the single source of truth for what Smart Mode may and must never do.
 
-Its responsibility is only:
-
-```text
-Input
-
-↓
-
-Normalize
-
-↓
-
-Generate URLs
-
-↓
-
-Save
-```
-
-It never performs:
-
-```text
-Search
-
-↓
-
-Discovery
-
-↓
-
-Verification
-
-↓
-
-Platform Communication
-```
-
-The word "Smart" refers only to reducing user typing.
-
-It never refers to discovering accounts.
+Within this boundary document, Smart Mode changes only how the user provides input. It never changes the processing pipeline described above.
 
 ---
 
@@ -309,22 +221,7 @@ Platform rules never define:
 * API endpoints
 * Search behavior
 * Platform communication
-* Verification logic
-
----
-
-# OAuth Boundary
-
-OAuth belongs to the Account domain.
-
-Its responsibility is:
-
-* ownership verification
-* official platform authorization
-* optional synchronization
-* future platform integrations
-
-OAuth is never required to create or save social accounts.
+* Account validation logic
 
 ---
 

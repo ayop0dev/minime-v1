@@ -264,15 +264,12 @@ type Account = {
   settings: {
     gtm_container_id: string | null;
   };
-  qr_config: {
-    color: string | null;
-    format: string | null;
-    storage_key: string | null;
-  };
   created_at: string;
   updated_at: string;
 };
 ```
+
+The QR Code is not an embedded field on Account. It is a separate Account-owned record (`AccountQRCode`), keyed by `account_id`. See the QR Code Entry Point note below, and `Architecture-Product-Definition/qr-code/qr-code.system.specification.v1.md` for the canonical QR Code model.
 
 ---
 
@@ -357,19 +354,31 @@ No other fields are supported in V1. The complete settings schema is defined in 
 
 ---
 
-## qr_config
+## QR Code Entry Point
 
-QR code configuration for the account's public profile QR.
+The Account's QR Code is not stored as a field on Account. It is a separate, Account-owned record (`AccountQRCode`) with its own globally unique identity (`qr_code_id`, `PRIMARY KEY` or `UNIQUE`), uniquely keyed by `account_id` (`UNIQUE(account_id)`).
 
-Fields:
+Rules:
 
 ```text
-color        — QR foreground color (hex string | null for default)
-format       — Always 'svg' in V1
-storage_key  — Object Storage key for the generated QR SVG asset (null until first generated)
+One Account owns exactly one QR Code record. One QR Code record belongs to exactly one Account.
+The QR Code record is keyed by account_id, never by username.
+The QR Code record never stores username or a username snapshot; username is always resolved live from the Account record through account_id.
+The QR Code identity (qr_code_id) is globally unique, permanent, and immutable.
+The QR Code is created once, before the Account becomes active — not lazily on first view, download, or share.
+An Account must never reach active status without a successfully created and persisted QR Code record and canonical SVG asset.
+The QR Code must never be user-editable, customizable, or independently regenerable.
 ```
 
-`storage_key` must never be exposed in API responses. The complete qr_config schema is defined in `implementation/03-canonical-data-model.md`.
+The complete QR Code model, generation flow, routing, and lifecycle are defined in:
+
+```text
+Architecture-Product-Definition/qr-code/qr-code.system.specification.v1.md
+Architecture-Product-Definition/qr-code/qr-code.generation.specification.v1.md
+Architecture-Product-Definition/qr-code/qr-code.lifecycle.specification.v1.md
+```
+
+The Prisma-level schema is defined in `implementation/03-canonical-data-model.md`. The generated SVG asset's storage key must never be exposed in API responses.
 
 ---
 
@@ -390,6 +399,8 @@ Timestamp of last Account-level update.
 ## active
 
 The Account exists and may be used normally.
+
+**Precondition:** An Account must never reach `active` status unless its `AccountQRCode` record and canonical SVG asset have already been successfully created and persisted. QR Code creation failure must prevent activation; there is no lazy-generation fallback. See `Architecture-Product-Definition/qr-code/qr-code.generation.specification.v1.md` — Section 4.
 
 An active Account may:
 
@@ -657,15 +668,12 @@ type Account = {
   settings: {
     gtm_container_id: string | null;
   };
-  qr_config: {
-    color: string | null;
-    format: string | null;
-    storage_key: string | null;
-  };
   created_at: string;
   updated_at: string;
 };
 ```
+
+The QR Code is intentionally absent from this shape. It is a separate Account-owned record (`AccountQRCode`, keyed by `account_id`), not a field on Account. See "QR Code Entry Point" above.
 
 ---
 

@@ -50,7 +50,7 @@ Step 5 — Blocks
 Step 6 — Appearance State
 Step 7 — Connected Accounts
 Step 8 — QR Code Records
-Step 9 — AI Accepted Decisions
+Step 9 — AI Analysis Sessions
 Step 10 — Binary Assets
 Step 11 — Account Record Status
 ```
@@ -154,19 +154,21 @@ Each connected account record is deleted individually.
 
 **Treatment:** Hard Delete.
 
-The account's QR Code record is permanently deleted.
+The account's QR Code record (keyed by `account_id`) is permanently deleted.
 
-The QR binary asset is deleted via Storage Platform as part of binary asset deletion.
+The generated SVG QR asset is deleted via Storage Platform as part of binary asset deletion.
+
+After deletion, `/qr/{qr_code_id}` must no longer resolve to an active profile.
 
 ---
 
-## AI Accepted Decisions
+## AI Analysis Sessions
 
 **Treatment:** Hard Delete.
 
-All accepted AI suggestion records owned by the account are permanently deleted.
+All Analysis Session records owned by the account are permanently deleted, regardless of status (completed or failed).
 
-These records are owned by the Data Platform and scoped to the account. They are deleted as part of the account data cascade.
+There is no separate "accepted AI decision" entity in V1. Analysis Sessions are stored reports only; an accepted suggestion already exists as ordinary Product Domain data owned by the responsible domain (e.g. an accepted bio is already part of Profile Content, deleted in that step). Analysis Sessions are owned by the AI Platform and scoped to the account. They are deleted as part of the account data cascade.
 
 ---
 
@@ -249,7 +251,7 @@ No rendering occurs. No cached profile is served beyond the CDN TTL defined by t
 | Appearance State | Hard Delete | Data Platform |
 | Connected Accounts | Hard Delete | Data Platform |
 | QR Code Records | Hard Delete | Data Platform |
-| AI Accepted Decisions | Hard Delete | Data Platform |
+| AI Analysis Sessions | Hard Delete | AI Platform |
 | Binary Assets | Physical deletion | Storage Platform |
 | Account Record | Status → deleted | Data Platform |
 | Username | Permanently reserved | Data Platform |

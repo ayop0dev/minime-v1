@@ -256,7 +256,9 @@ authentication.policy.v1.md
 
 Minime V1 authentication is provider-based only. Minime never authenticates users directly. Minime accepts successful authentication assertions from supported external identity providers only.
 
-Supported providers:
+`provider` is request data passed into the authentication flow, never part of the API route structure. The authentication architecture is provider-agnostic and extensible by adding new Provider Adapters in future versions — see "Provider Adapter Architecture" in `authentication.policy.v1.md`. V1 enables exactly two adapters.
+
+Supported providers (V1):
 
 ## Google Sign-In
 
@@ -287,6 +289,11 @@ Email OTP
 Phone Signup
 Phone OTP
 SMS Verification
+WhatsApp Verification
+Password Authentication
+Facebook Login
+X Login
+LinkedIn Login
 ```
 
 ---
@@ -374,6 +381,24 @@ minime.ae/ahmed
 
 ---
 
+# QR Code Creation (Mandatory Before Activation)
+
+Immediately after the public profile is created, QR Code creation is mandatory:
+
+```text
+Create Public Profile
+↓
+Create QR Code Record + Canonical SVG Asset (QRService.generate)
+↓
+Account Becomes Active
+```
+
+An Account must never reach `active` status unless its QR Code record (`AccountQRCode`) and canonical SVG asset have been successfully created and persisted. If QR Code creation fails, the Account must not become active. There is no lazy QR generation on first dashboard view, first settings view, first download, first share, or first public profile visit.
+
+The full QR Code architecture is defined in `Architecture-Product-Definition/qr-code/qr-code.system.specification.v1.md`, `qr-code.generation.specification.v1.md`, and `qr-code.lifecycle.specification.v1.md`.
+
+---
+
 # Registration Flow
 
 ```text
@@ -404,6 +429,10 @@ Attach Username
 Delete Reservation
 ↓
 Create Public Profile
+↓
+Create QR Code Record + Canonical SVG Asset
+↓
+Account Becomes Active
 ↓
 Welcome Screen
 ↓
@@ -444,4 +473,7 @@ Social Accounts Setup remains optional.
 username.policy.v1.md
 authentication.policy.v1.md
 username.reserved.and.blocked.lists.v1.md
+qr-code/qr-code.system.specification.v1.md
+qr-code/qr-code.generation.specification.v1.md
+qr-code/qr-code.lifecycle.specification.v1.md
 ```

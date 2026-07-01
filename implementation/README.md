@@ -2,9 +2,9 @@
 
 ## Status
 
-**READY FOR IMPLEMENTATION.**
+**Implementation blockers resolved per `FULL_STACK_IMPLEMENTATION_BLOCKERS_AUDIT.md`.**
 
-Implementation repository is complete and frozen. All 13 specification documents have passed integrity audit. Phase 03 (Backend Implementation) may begin.
+The 20 critical/high implementation blockers, the cross-domain conflict table, and the missing-contract inventory identified by that audit have been addressed by architectural clarification (not redesign) — see `IMPLEMENTATION_BLOCKERS_RESOLUTION_REPORT.md` at the repository root for the full file-by-file account of what changed and why. Specification documents in this directory are not self-certifying; do not restate "ready for implementation" here without re-running the audit against the current state of the repository.
 
 ---
 
@@ -68,12 +68,16 @@ These are derived directly from the frozen architecture. Every implementation de
 
 **Authentication**
 
-- Supported providers in V1: Google Sign-In and Apple Sign-In only.
+- Supported providers in V1: Google Sign-In and Apple Sign-In only, each implemented as a backend-driven OAuth/OIDC authorization-code flow dispatched through a Provider Adapter (`AuthService.startOAuth` / `handleOAuthCallback`; see `authentication.policy.v1.md` — "Provider Adapter Architecture").
 - Authentication is provider-based only. Minime never authenticates users directly.
+- `provider` is constrained to `google` | `apple` in V1; no generic open-ended provider value exists. `provider` is always request data, never API route structure — there is no `/auth/{provider}/*` route of any kind. A future provider is added by implementing a new adapter and extending the allowlist, never by changing routes, service contracts, or the data model shape.
+- Identity is `(provider, provider_subject)` — the only authentication identity key. `email` is optional, provider-returned profile metadata only — never the canonical identity key, never used for automatic account merge. There is no automatic and no manual account merge in V1.
+- `AuthenticationIdentity` has no `display_name` field; provider-reported names live only inside `provider_profile`, generic non-authoritative metadata that never replaces Profile Content.
+- Every account has at least one `AuthenticationIdentity`; the last remaining one can never be removed. A second provider may be explicitly linked (by an already-logged-in user) and later unlinked, addressed by `auth_identity_id`. `primary_provider`, if set, is a display preference only and never affects ownership or authorization.
 - Email OTP is not supported in V1.
-- Phone OTP is not supported in V1.
-- SMS is not supported in V1.
-- OAuth is not implemented in V1 (ConnectedAccounts does not use OAuth).
+- Phone OTP, SMS, and WhatsApp OTP are not supported in V1.
+- Password authentication, Facebook Login, X Login, and LinkedIn Login are not supported in V1.
+- Connected Accounts (social links) do not use OAuth and are not authentication providers — this is a separate, unrelated boundary from Authentication's OAuth flows above, and it holds even if a future Authentication Provider Adapter targets a platform that is also a Social Accounts platform (e.g. Instagram, Facebook).
 
 **Social Accounts vs Connected Accounts**
 
@@ -179,8 +183,10 @@ implementation/
 - Introduce `profile_id` as a foreign key anywhere
 - Implement `publishProfile` or `unpublishProfile`
 - Implement username editing operations
-- Implement Email OTP, phone OTP, or SMS authentication
-- Implement OAuth flows or token storage
+- Implement Email OTP, phone OTP, SMS, WhatsApp OTP, password authentication, Facebook Login, X Login, or LinkedIn Login
+- Implement Connected/Social Accounts OAuth flows or provider token storage for social platforms (distinct from Authentication's Google/Apple OAuth, which is implemented per `authentication.policy.v1.md`)
+- Persist any provider access token or refresh token (Authentication or Social) anywhere in V1
+- Accept a `provider` value other than `google` or `apple` on any authentication endpoint, or use `email` as the canonical authentication identity
 - Add lifecycle states not defined by the frozen architecture
 - Add Product Domains not defined by the frozen architecture
 - Add Platform Services beyond: Data, Storage, Events, AI

@@ -234,11 +234,7 @@ Image Radius Range (per block)
 Text Alignment Options (per block)
 ```
 
-This area crosses into block-level styling customization.
-
-It requires a separate V1 Appearance review before being introduced or expanded.
-
-Do not build block-level override constraint enforcement in V1 without completing that review.
+**V1 scope decision:** This review is complete. Block-level style overrides are in V1 scope. The full, closed contract lives in the `block-styling/` specifications — `block-style.model.specification.v1.md` (closed per-block-type property catalog), `block-style.constraints.specification.v1.md` (constraint ranges and the Reject-Save / Reset-To-Inherited resolution policy), `block-style.inheritance.specification.v1.md`, `block-style.override.specification.v1.md`, and `block-style.resolution.specification.v1.md`. Theme-level constraints (this document) and block-level override constraints (`block-styling/`) are two layers of the same resolution chain, not competing or mutually exclusive systems — see `block-style.resolution.specification.v1.md` for how a rendered value is resolved from Theme defaults + Block overrides together.
 
 ---
 

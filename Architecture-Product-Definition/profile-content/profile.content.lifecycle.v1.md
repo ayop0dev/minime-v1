@@ -101,15 +101,17 @@ Profile Content always exists for every Account.
 Immediately after creation:
 
 ```text
-Display Name = Empty
+Display Name = the claimed username (set once, at creation, by the registration transaction; never empty)
 Avatar = Empty
 Bio = Empty
 Blocks = Empty
 ```
 
+Display Name is the one field that is never empty, from creation onward — see `profile.content.specification.v1.md` and `implementation/03-canonical-data-model.md`. All other fields may remain empty.
+
 The profile may be incomplete.
 
-Incomplete content is valid.
+Incomplete content is valid, except for Display Name, which is always populated.
 
 ---
 

@@ -324,15 +324,13 @@ The system must resolve the issue before rendering.
 
 ---
 
-Allowed strategies:
+Two distinct situations require two distinct strategies — they are not interchangeable options for the same event:
 
-```text
-Reject Save
-Reset To Inherited
-Auto-Correct
-```
+**At override write time** (`addBlock`/`updateBlock` submitting a new override value against the currently active Theme): **Reject Save.** The write is rejected with a validation error; the Block's stored `style_overrides` is unchanged. This is ordinary input validation, not a theme-switch concern.
 
-Resolution policy is defined separately.
+**At theme-switch time** (an existing, previously-valid override becomes invalid because the newly selected Theme's constraints are narrower): **Reset To Inherited**, per affected field only. The specific override key that is now out of range is removed from `style_overrides` for that block, so the field falls back to full inheritance from the new Theme. Every other override key on the block that is still valid under the new Theme's constraints is left untouched. The theme switch itself is never blocked or rejected because of this — a user must always be able to switch themes.
+
+**Auto-Correct** (silently substituting a different value the user did not choose, such as clamping 30px to the nearest valid bound) **is not used in V1.** It is excluded because it would make `appearance_config` diverge from anything the user actually entered, without an explicit user action — this is the same "current state remains authoritative to the user's own input" principle applied elsewhere in the architecture.
 
 ---
 

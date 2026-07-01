@@ -309,9 +309,11 @@ If relevant information changes:
 
 the previous context should be considered stale.
 
-In V1, context freshness is determined by whether account state (profile, blocks, connected accounts) has changed since the last Analysis Session. The input hash captures this state; a changed hash triggers a new `Provider.execute(...)` call.
+In V1, context freshness is determined by whether the Analysis Input Snapshot (account state: profile, blocks, connected accounts, analytics summary) has changed since the last Analysis Session. The Input Hash captures this snapshot; a changed Input Hash means no matching completed Analysis Session exists, so a new `Provider.execute(request)` call is made. An unchanged Input Hash, combined with a matching `analysis_version` and `output_schema_version`, means the latest completed Analysis Session is reused (Analysis Session Reuse).
 
-Freshness should be determined by platform state rather than time alone.
+The Analysis Input Snapshot is the only approved V1 context object for an Analysis Session. It is constructed exclusively by `AIService`; Product Domains must not supply custom ad-hoc AI context.
+
+Freshness is determined by platform state, never by elapsed time.
 
 ---
 

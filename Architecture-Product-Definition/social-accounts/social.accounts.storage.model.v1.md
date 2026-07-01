@@ -134,7 +134,6 @@ Examples:
 * Facebook
 * LinkedIn
 * YouTube
-* GitHub
 
 Only supported platforms may be included in the handoff record.
 
@@ -249,9 +248,6 @@ The handoff record intentionally excludes:
 * access tokens
 * profile metadata
 * profile descriptions
-* account existence state
-* verification state
-* discovery confidence
 * visibility state (managed by Social Icons Block per-block)
 
 ---
@@ -268,7 +264,7 @@ Producing an Instagram handoff record never affects:
 
 * TikTok
 * LinkedIn
-* GitHub
+* YouTube
 
 ---
 
@@ -363,14 +359,6 @@ Rendering never regenerates URLs.
 Consumes click events.
 
 Analytics never modifies social account handoff records or Connected Account records.
-
----
-
-## OAuth
-
-Not stored here.
-
-OAuth belongs to a separate domain.
 
 ---
 

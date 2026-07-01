@@ -160,30 +160,36 @@ Integrations is a Cross-Cutting Product Capability.
 
 **Container ID:** Provided by the account owner through account settings, stored as `Account.settings.gtm_container_id`. If absent or empty for an account, the GTM snippet is not injected for that account's public profile.
 
-**Injection rule:** The GTM snippet is injected into the `<head>` of the public profile HTML response, immediately after the opening `<head>` tag.
+**Injection rule:** The GTM snippet is never injected directly into the public profile document's own DOM context. It is injected as a sandboxed `<iframe>` placed immediately after the opening `<body>` tag — see "GTM Security Rules" below for why, and `google-tag-manager.specification.v1.md` — "Security Principles" for the full threat model this responds to.
 
 **Snippet format:**
 
 ```html
-<!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){...})(window,document,'script','dataLayer','GTM-XXXXXX');</script>
+<!-- Google Tag Manager (sandboxed) -->
+<iframe
+  sandbox="allow-scripts"
+  srcdoc="&lt;script&gt;(function(w,d,s,l,i){...})(window,document,'script','dataLayer','GTM-XXXXXX');&lt;/script&gt;"
+  style="display:none" width="0" height="0" aria-hidden="true">
+</iframe>
 <!-- End Google Tag Manager -->
 ```
 
-Where `GTM-XXXXXX` is the configured `GTM_CONTAINER_ID`.
+Where `GTM-XXXXXX` is the configured `gtm_container_id`. `sandbox="allow-scripts"` is the only sandbox token granted — `allow-same-origin`, `allow-top-navigation`, `allow-popups`, and `allow-forms` are never added.
 
-**Body noscript tag:** The GTM `<noscript>` fallback is injected immediately after the opening `<body>` tag.
+**No body noscript fallback in V1:** the GTM `<noscript>` fallback (a `<img>` pixel) would need to be either inside the sandboxed iframe (harmless but useless, since it fires from the opaque origin, same as the script path) or outside it in the parent document (which would defeat the containment boundary by giving the parent page an unreviewed third-party image tag). V1 omits it; GTM tag firing for JavaScript-disabled visitors is not a V1 guarantee.
 
 ---
 
 ### GTM Security Rules
 
-Per `08-security-model.md`:
+Per `08-security-model.md` and `google-tag-manager.specification.v1.md` — "Security Principles":
 
-- GTM container ID is user-provided account configuration. It is accepted through the account settings API (authenticated endpoint), validated on write, and stored in `Account.settings`. It must not be accepted as a raw parameter in public profile requests.
+- GTM container ID is user-provided account configuration. It is accepted through the account settings API (authenticated endpoint), validated on write (format only), and stored in `Account.settings`. It must not be accepted as a raw parameter in public profile requests.
+- Format-validating the Container ID is not a script-injection defense — it cannot be, since the account owner's own GTM workspace can add arbitrary-JavaScript tags that Minime never sees. The actual defense is containment: **the GTM snippet always executes inside the sandboxed iframe above, never in the parent document's origin.** A sandboxed iframe without `allow-same-origin` has a unique, opaque origin — scripts inside it cannot read/write the parent DOM, cannot access any Minime cookie or storage, and cannot navigate the top-level page. This holds regardless of what tags the account owner configures in their GTM workspace.
+- The parent document's Content-Security-Policy `script-src` must not need to allow `googletagmanager.com` or any Google tagging domain — those are only ever loaded inside the sandboxed iframe's own document (via `srcdoc`), which is a separate origin from the parent page's CSP scope. This keeps the parent page's own CSP tight regardless of whether GTM is configured.
 - GTM snippet is injected server-side, not client-side. Client-supplied script content is never trusted.
-- GTM loading must be conditional: absent or empty `Account.settings.gtm_container_id` for the requested account means no snippet is injected; no error is raised.
-- GTM provider failures (network errors, script load failures) must not affect profile rendering. GTM is loaded asynchronously and must not block rendering.
+- GTM loading must be conditional: absent or empty `Account.settings.gtm_container_id` for the requested account means no iframe is injected; no error is raised.
+- GTM provider failures (network errors, script load failures) must not affect profile rendering. The iframe loads asynchronously and must not block rendering.
 
 ---
 

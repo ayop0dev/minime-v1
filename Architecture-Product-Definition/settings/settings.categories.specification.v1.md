@@ -55,10 +55,10 @@ Responsible for configuration related to the user's Minime account.
 
 Examples include:
 
-* Email
-* Authentication preferences
-* Password management
 * Account lifecycle
+* QR Code (`Settings / Account / QR Code`) — view, download, share, and copy profile link only; never customizable or user-regenerable
+
+There is no account email field and no password management in V1 — authentication is provider-based only. Linked provider management (Google, Apple) lives in the Security category below.
 
 ---
 
@@ -120,7 +120,7 @@ Responsible for security-related configuration.
 
 Examples include:
 
-* Authentication methods
+* Linked authentication providers (Google, Apple) — link, unlink, set primary display preference
 * Session management
 * Security preferences
 

@@ -124,25 +124,19 @@ This keeps responsibilities separated.
 
 # Block Collection
 
-Every Profile Content record owns:
+Profile Content does not store a `blocks[]` or `block_ids[]` field. The block collection for an Account is the query result `SELECT * FROM Block WHERE account_id = :account_id AND deleted_at IS NULL ORDER BY sort_order` — see "Canonical Composition Model" below.
+
+Example (the resulting collection, not a stored field):
 
 ```text
-blocks[]
+blk_avatar,
+blk_name,
+blk_bio,
+blk_button_1,
+blk_button_2
 ```
 
-Example:
-
-```text
-blocks = [
-  blk_avatar,
-  blk_name,
-  blk_bio,
-  blk_button_1,
-  blk_button_2
-]
-```
-
-The collection defines which Blocks belong to the Account.
+`account_id` on each `Block` row is what defines which Blocks belong to the Account — not a reference list stored on Profile Content.
 
 ---
 
@@ -424,16 +418,7 @@ These belong elsewhere.
 
 # Data Profile Content May Store
 
-Profile Content may store:
-
-```text
-Account Ownership
-Block References
-Block Collection Metadata
-Composition Metadata
-```
-
-Only data required to compose the profile.
+Profile Content stores only its own canonical fields (`display_name`, `bio`, `avatar_storage_key`, `contact`, `appearance_config` — see `implementation/03-canonical-data-model.md` — ProfileContent). It stores no Block references, collection metadata, or composition metadata of any kind — composition is always derived by querying `Block` directly (see "Canonical Composition Model").
 
 ---
 
@@ -497,9 +482,15 @@ Each Block belongs to one Account only.
 ```ts
 type ProfileContent = {
   account_id: string;
-  block_ids: string[];
+  // no block_ids or blocks[] field — see "Ordering Model" above: Block.sort_order
+  // is the single source of truth, and ProfileContent does not duplicate it into
+  // a second ordering array. Composition is a query, not a stored list:
+  //   SELECT * FROM Block WHERE account_id = :account_id AND deleted_at IS NULL
+  //   ORDER BY sort_order
 };
 ```
+
+An earlier draft of this document modeled composition as a stored `block_ids: string[]` array on `ProfileContent`. That was a second ordering model and directly contradicted "Ordering Model" above (`Block.sort_order` is the source of truth; "It does not create a second ordering model"). It also never matched `implementation/03-canonical-data-model.md`'s `ProfileContent` entity, which has no `block_ids` or `blocks` field. This section is corrected to match both: composition and ordering come from querying `Block` directly, not from a field stored on `ProfileContent`.
 
 The actual Block data remains inside the Block System.
 

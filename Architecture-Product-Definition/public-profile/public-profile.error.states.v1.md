@@ -132,6 +132,24 @@ Result:
 
 ---
 
+## QR Code Cannot Resolve
+
+Example:
+
+```text
+/qr/{qr_code_id} where the QR Code record does not exist, belongs to a deleted Account, or cannot resolve to an active public profile.
+```
+
+Result:
+
+```text
+404 Not Found
+```
+
+The QR redirect route must never expose internal Account data while failing.
+
+---
+
 # Privacy Rule
 
 Visitors must not be able to distinguish between:

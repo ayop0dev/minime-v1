@@ -144,15 +144,11 @@ Provider failures must remain isolated.
 
 # Security Principles
 
-The GTM provider must never allow users to inject:
+**Honest threat model:** A validated GTM Container ID is not, by itself, a script-injection-safe input. Once a container is configured, the account owner's own GTM workspace — which Minime explicitly does not manage or inspect (see "Responsibilities") — can add any tag, including a Custom HTML tag containing arbitrary JavaScript. Format-validating the Container ID does not and cannot prevent this; claiming otherwise would be inaccurate. The actual security boundary is containment, defined below, not input validation.
 
-* JavaScript
-* HTML
-* CSS
-* external script URLs
-* inline scripts
+**Containment boundary:** The GTM snippet is never injected directly into the public profile document's own DOM context. It is loaded inside a sandboxed `<iframe>` with `sandbox="allow-scripts"` only — `allow-same-origin`, `allow-top-navigation`, and `allow-popups` are never granted. A sandboxed iframe without `allow-same-origin` executes in a unique, opaque origin: scripts running inside it cannot read or write the parent page's DOM, cannot access the parent page's (or any Minime origin's) cookies or storage, and cannot navigate the visitor away from the page. Whatever the account owner's GTM workspace does, it is confined to that opaque origin. This is the mechanism that satisfies "Minime never executes arbitrary user code against its own origin or user sessions" — GTM tags may still execute arbitrary JavaScript, but only inside a context with no access to Minime data.
 
-The only accepted configuration is a validated GTM Container ID.
+The provider must never accept, from the user, anything other than the Container ID string itself (no raw JavaScript, HTML, CSS, script URLs, or inline scripts as configuration inputs) — this remains true and is enforced at the settings-write boundary. It is distinct from, and does not substitute for, the iframe containment boundary above.
 
 ---
 

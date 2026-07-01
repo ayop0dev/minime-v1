@@ -80,7 +80,7 @@ Format: `domain.action` or `domain.entity.action`
 
 ```text
 account.created
-auth.provider.authenticated
+auth.provider.completed
 profile.block.added
 connected-account.removed
 out-link.clicked
@@ -132,10 +132,10 @@ Payloads must not contain:
 |---|---|---|
 | `account.created` | AccountService | Registration completed; Account created |
 | `account.settings.updated` | AccountService | Account.settings mutated |
-| `account.qr.updated` | AccountService | Account.qr_config mutated |
+| `account.qr.created` | AccountService | AccountQRCode record created (once, as a required blocking step immediately after the account's canonical public profile route exists and before the Account becomes active) |
 | `account.deleted` | AccountService | Account.status set to 'deleted' |
 
-**Removed:** `account.deactivated`, `account.reactivated`, `account.deletion.requested`, `account.deletion.cancelled` — these operations do not exist in V1.
+**Removed:** `account.deactivated`, `account.reactivated`, `account.deletion.requested`, `account.deletion.cancelled`, `account.qr.updated` — these operations do not exist in V1. The QR Code record is created once and is never user-editable, so no update event exists for it.
 
 ---
 
@@ -143,12 +143,18 @@ Payloads must not contain:
 
 | Event | Publisher | Trigger |
 |---|---|---|
-| `auth.provider.authenticated` | AuthService | Provider ID token validated (Google or Apple) |
+| `auth.provider.started` | AuthService | OAuth authorization-code flow initiated (`startOAuth`); state and nonce issued |
+| `auth.provider.completed` | AuthService | OAuth callback validated end-to-end: state matched, code exchanged, id_token validated (Google or Apple) |
+| `auth.provider.failed` | AuthService | OAuth callback failed validation (state mismatch, code exchange failure, invalid id_token, or duplicate-identity rejection) |
+| `auth.provider.linked` | AuthService | A provider was linked to an already-authenticated account (`linkAuthenticationProvider`) |
+| `auth.provider.unlinked` | AuthService | A provider was unlinked from an account (`unlinkAuthenticationProvider`) |
 | `auth.registration.completed` | AuthService | Account + AuthenticationIdentity + ProfileContent created |
 | `auth.session.created` | AuthService | Session record created |
 | `auth.session.refreshed` | AuthService | Refresh token rotated |
 | `auth.session.revoked` | AuthService | Session.revoked_at set |
 | `auth.logout` | AuthService | Current session revoked via logout |
+
+There is no `auth.otp.*` event of any kind. There is no event named `auth.google.authenticated` or `auth.apple.authenticated` — `auth.provider.completed` covers both providers uniformly.
 
 ---
 
@@ -261,10 +267,20 @@ The following handlers subscribe to events from other domains:
 | Handler | Subscribes to | Action |
 |---|---|---|
 | RenderingService cache invalidator | `profile.updated`, `profile.avatar.updated`, `profile.appearance.updated`, `profile.block.*` | Invalidates `profile:public:{username}` and `profile:content:{account_id}` in Redis |
-| Session revocation handler | `account.deleted` | Calls AuthService.revokeAllSessions for the deleted account (synchronous, in-process — satisfies the "at the moment of deletion" security requirement) |
-| Deletion cascade enqueuer | `account.deleted` | Enqueues `account.deletion.cascade` BullMQ job for durable cross-domain cascade cleanup |
+| Session revocation handler (best-effort fast path) | `account.deleted` | Calls AuthService.revokeAllSessions for the deleted account when this handler does fire; this is a latency optimization only — the guaranteed revocation path is the `account.deletion.cascade` job's step 1 catch-all (Job 7), whose enqueue is durably guaranteed by the Deletion Outbox Dispatcher (Job 8), not by this handler. See "V1 Event Durability Classification" below. |
+| Deletion cascade enqueuer (best-effort fast path) | `account.deleted` | Enqueues `account.deletion.cascade` BullMQ job as a latency optimization; if this handler never runs (process crash), Job 8 enqueues the same job (deduplicated by `jobId`) within 30 seconds regardless. See "V1 Event Durability Classification" below. |
 | Analytics profile view handler | `profile.viewed` | Calls AnalyticsService.recordProfileView({account_id, device_category}) with the values from the event payload; Analytics must not classify, recalculate, or infer device_category |
 | Analytics ingestion (BullMQ) | `out-link.clicked` payload via job | Calls AnalyticsService.recordLinkClick |
+
+---
+
+## V1 Event Durability Classification
+
+`Architecture-Product-Definition/platform/events/events.architecture.specification.v1.md` describes an Events Platform capable of durable, queryable, "record before deliver" event history, while also stating (in the same document, "Simplicity Over Event Sourcing" and "Failure Philosophy") that no Product Domain should require replaying Events to reconstruct state, and that business correctness must never depend solely on Event persistence. V1 resolves this by declaring, explicitly, that:
+
+- No Product Domain or Platform Service in V1 requires querying a persisted event history. All events in the Canonical Business Event Catalog above are internal, best-effort, in-process NestJS EventEmitter notifications, exactly as described in "Technology: NestJS EventEmitter." There is no separate "recording" stage distinct from delivery, and no event store exists in V1 — this is a deliberate scope decision, not an oversight, and it does not violate the architecture, because the architecture's persistence tier is only engaged once a Product Domain declares a need for it, and none does in V1.
+- Any business outcome that must survive a process crash is guaranteed by domain-owned durable Product Data, never by the Events Platform. The one case in V1 where this matters — account deletion cascade cleanup — is guaranteed by `AccountDeletionOutbox` (see `03-canonical-data-model.md` and `10-background-jobs.md` — Job 8), a narrow, single-purpose reliability primitive owned by the Account domain. It is not part of the Events Platform and does not generalize into an event store.
+- If a future version needs AI, Analytics, or Monitoring to consume historical event data beyond what `AnalyticsEvent` and `AuditLog` already persist as first-class Product Data, that version must introduce an explicit Event Store schema and revisit this section. No such need exists in V1.
 
 ---
 
@@ -309,6 +325,7 @@ Implementation must not:
 - publish `social-account.*` events — Social Accounts domain emits no events
 - publish `out-link.enabled` or `out-link.disabled` — no is_enabled field exists
 - publish `qr_scan` analytics events — qr_scan is not a V1 analytics event type
+- publish `account.qr.updated`, `account.qr.regenerated`, or `account.qr.customized` — the QR Code record is created once and is never user-editable
 - publish `auth.otp.requested` or `auth.otp.verified` — Email OTP does not exist in V1
-- publish `auth.google.authenticated` — the canonical event is `auth.provider.authenticated` (covers both Google and Apple)
+- publish `auth.google.authenticated` or `auth.apple.authenticated` — the canonical event is `auth.provider.completed` (covers both Google and Apple)
 - allow AnalyticsService to classify, recalculate, or infer `device_category` from any source — device_category is classified by the public profile rendering pipeline before `profile.viewed` is emitted and must be consumed as-is

@@ -359,6 +359,8 @@ Meaning must remain unchanged.
 
 # Relationship with Smart Mode
 
+Smart Mode is defined canonically in `social.accounts.smart.mode.specification.v1.md`.
+
 Smart Mode and Manual Mode share:
 
 * the same normalization engine
@@ -411,4 +413,4 @@ Manual Mode operates entirely without communicating with any social platform.
 
 Manual Mode provides platform-specific collection of user-provided social account identifiers.
 
-It normalizes formatting, generates standardized public profile URLs, and delivers Normalized Social Account Handoff Records to Connected Accounts for canonical storage — without performing account discovery, account verification, or external platform communication.
+It normalizes formatting, generates standardized public profile URLs, and delivers Normalized Social Account Handoff Records to Connected Accounts for canonical storage. Its responsibility is limited to canonical input processing for manually entered identifiers.

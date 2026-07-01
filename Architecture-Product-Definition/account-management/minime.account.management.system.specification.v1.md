@@ -279,9 +279,9 @@ https://www.instagram.com/ahmedofficial/
 
 All manually added accounts must be validated before creation.
 
-Validation uses the platform rules.
+Validation uses the platform rules and checks format only — per `connected.accounts.specification.v1.md`, the system never checks whether the account exists on the external platform. There is no external network call of any kind during Connected Accounts creation.
 
-If the account cannot be found:
+If the format is invalid:
 
 ```text
 Creation Rejected
@@ -456,9 +456,9 @@ Minime V1 uses:
 External Identity Provider
 ```
 
-Minime never authenticates users directly. Authentication is provided exclusively by supported external identity providers.
+Minime never authenticates users directly. Authentication is provided exclusively by supported external identity providers, modeled through provider adapters (see `authentication.policy.v1.md` — "Provider Adapter Architecture"). `provider` is request data, never API route structure.
 
-Supported providers:
+Supported providers (V1):
 
 * Google Sign-In
 * Apple Sign-In
@@ -467,9 +467,9 @@ Passwords, email OTP, and all other direct authentication methods are not suppor
 
 ---
 
-## Primary Authentication Identity
+## Linked Authentication Identities
 
-Every account must have exactly one primary authentication identity.
+An account may have one or both supported providers linked simultaneously.
 
 Allowed providers:
 
@@ -478,6 +478,20 @@ google
 apple
 ```
 
+An account is never required to link both. One linked provider is sufficient at all times.
+
+---
+
+## Primary Provider
+
+If both Google and Apple are linked, either may be designated `primary_provider` — a UI/default-display preference only.
+
+* `primary_provider` must never determine ownership.
+* `primary_provider` must never determine authorization.
+* `account_id` + the linked `AuthenticationIdentity` binding (`provider` + `provider_subject`) determines ownership — never the primary flag.
+* Removing or changing `primary_provider` must never affect authentication validity for any linked identity.
+* The last remaining linked provider cannot be removed, regardless of whether it is marked primary.
+
 ---
 
 ## Minimum Requirement
@@ -485,34 +499,20 @@ apple
 Every account must always have:
 
 ```text
-At Least One Authentication Method
+At Least One Authentication Provider Linked
 ```
 
-The last remaining authentication method cannot be removed.
+The last remaining authentication provider cannot be removed. Unlinking must be rejected if it would leave the account with zero linked providers.
 
 ---
 
-## Authentication Identity Changes
+## Linking and Unlinking a Provider
 
-Changing an authentication identity requires verification.
+Linking adds a new authentication identity to the account; it requires the user to already be logged in and to explicitly start provider linking, completing a full OAuth verification flow with the new provider. It is subject to the same duplicate-identity check used during registration: a `(provider, provider_subject)` pair already bound to a different account must never be linked to a second account.
 
-Examples:
+Unlinking removes an authentication identity record, identified by `auth_identity_id`. Unlinking never removes the account and never affects any other linked identity or any Product Data.
 
-```text
-Email A
-↓
-Email B
-```
-
-or
-
-```text
-Google A
-↓
-Google B
-```
-
-require successful verification of the new identity before replacement.
+There is no "replace an identity" operation. `provider_subject` is immutable once an identity record is created; an identity is linked or unlinked, never edited or replaced. There is no email-based identity change and no automatic account merge of any kind, because email is never the authentication identity in V1. The full rules are defined in `authentication.policy.v1.md` — "Identity Merge Policy".
 
 ---
 

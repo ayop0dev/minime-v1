@@ -118,13 +118,11 @@ Nothing more.
 
 # Principle 4
 
-## Collection Before Verification
+## User Input Only
 
-Collecting social accounts and verifying ownership are different responsibilities.
+The Social Accounts domain operates exclusively on what the user provides.
 
-Users must always be able to create and publish their profile without proving ownership of any external account.
-
-Verification, if introduced, is always optional and belongs to a separate domain.
+Ownership of an external account is asserted by the user and accepted as given. Users must always be able to create and publish their profile without proving ownership of any external account.
 
 ---
 
@@ -267,6 +265,8 @@ This guarantees predictability and simplifies testing.
 
 ## Shared Logic
 
+Smart Mode is defined canonically in `social.accounts.smart.mode.specification.v1.md`.
+
 Smart Mode and Manual Mode are different user experiences.
 
 They are not different processing engines.
@@ -331,10 +331,6 @@ URL Generation
 Storage
 
 → persistence
-
-OAuth
-
-→ authorization
 
 Rendering
 
